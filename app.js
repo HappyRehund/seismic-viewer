@@ -1,5 +1,5 @@
 const GLOBAL_CONFIG_SEISMIC = {
-    innlineCount: 1092,
+    inlineCount: 1092,
     crosslineCount: 549,
     timeSize: 1400,
     imageWidth: 2790,
@@ -108,6 +108,63 @@ const GLOBAL_CONFIG_WELL_LOG = {
     maxLogWidth: 10,
     tubeRadiues: 1,
     curveSegments
+}
+
+// [SAME A]
+const HELPER_COORD_inlineToX = (inlineIndex) => {
+    const normalized = inlineIndex / (GLOBAL_CONFIG_SEISMIC.inlineCount - 1)
+    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+}
+
+const HELPER_COORD_crosslineToZ = (crosslineIndex) => {
+    const normalized = crosslineIndex / (GLOBAL_CONFIG_SEISMIC.crosslineCount - 1)
+    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+}
+
+const HELPER_COORD_indexToPosition = (index, maxCount) => {
+    const normalized = index / maxCount - 1
+    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+}
+
+const HELPER_COORD_realInlineToX = (realInline) => {
+    const inlineIndex = realInline - GLOBAL_CONFIG_SEISMIC.inlineOffset
+
+    return HELPER_COORD_inlineToX(inlineIndex)
+}
+
+const HELPER_COORD_realCrosslineToZ = (realCrossline) => {
+    const crosslineIndex = realCrossline - GLOBAL_CONFIG_SEISMIC.croslineOffset
+
+    return HELPER_COORD_crosslineToZ(crosslineIndex)
+}
+
+const HELPER_COORD_timeToY = (time) => {
+    return -time + GLOBAL_CONFIG_SEISMIC.getVerticalOffset()
+}
+
+const HELPER_COORD_normalizeTwt = (twt) => {
+    return Math.abs(twt)
+}
+
+const HELPER_COORD_seismicToWorld = (point) => {
+    
+    const x = HELPER_COORD_inlineToX(point.inline ?? point.inline_n)
+    const y = HELPER_COORD_crosslineToZ(point.crossline ?? point.crossline_n)
+    const z = HELPER_COORD_timeToY(point.time ?? point.z)
+    
+    return new THREE.Vector3(
+        x,
+        y,
+        z
+    )
+}
+
+const HELPER_COORD_getBoundingBoxCenter = () => {
+    return {
+        x: GLOBAL_CONFIG_SEISMIC.imageWidth / 2,
+        y: GLOBAL_CONFIG_SEISMIC.imageHeight / 2,
+        z: GLOBAL_CONFIG_SEISMIC.imageWidth / 2
+    }
 }
 
 
