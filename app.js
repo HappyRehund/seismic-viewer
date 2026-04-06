@@ -107,12 +107,18 @@ const GLOBAL_CONFIG_WELL_LOG = {
     },
     maxLogWidth: 10,
     tubeRadiues: 1,
-    curveSegments
+    curveSegments: 12
 }
 
+/** @type {import("three").Scene | null} */
 let GLOBAL_SCENE_INSTANCE = null
+
+/** @type {import("three").PerspectiveCamera | null} */
 let GLOBAL_SCENE_CAMERA = null
+
+/** @type {import("three").WebGLRenderer | null} */
 let GLOBAL_SCENE_RENDERER = null
+
 let GLOBAL_SCENE_ANIM_FRAME_ID = null
 
 let GLOBAL_SCENE_ORBIT_STATE = {
@@ -132,10 +138,18 @@ let GLOBAL_SCENE_ORBIT_STATE = {
     }
 }
 
+/** @type {import("three").Raycaster | null} */
 let GLOBAL_SCENE_RAYCASTER = null
+
+/** @type {import("three").Vector2 | null} */
 let GLOBAL_SCENE_MOUSE = null
+
+/** @type {HTMLElement | null} */
 let GLOBAL_SCENE_TOOLTIP = null
+
+/** @type {import("three").Object3D | null} */
 let GLOBAL_SCENE_HOVERED_WELL = null
+
 let GLOBAL_SCENE_LAST_RAYCAST_TIME = 0
 
 const GLOBAL_SCENE_RAYCAST_THROTTLE = 50
