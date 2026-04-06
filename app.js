@@ -268,11 +268,11 @@ const HELPER_SCENE_updateCameraPosition = () => {
     const targetY = center.y + targetOffset.y;
     const targetZ = center.z + targetOffset.z;
 
-    const x = targetX + radius * Math.sin(phi) * Math.cos(theta)
-    const y = targetY + radius * Math.cos(phi)
-    const z = targetZ + radius * Math.sin(phi) * Math.sin(theta)
+    const cameraPosX = targetX + radius * Math.sin(phi) * Math.cos(theta)
+    const cameraPosY = targetY + radius * Math.cos(phi)
+    const cameraPosZ = targetZ + radius * Math.sin(phi) * Math.sin(theta)
 
-    GLOBAL_SCENE_CAMERA.position.set(x, y, z)
+    GLOBAL_SCENE_CAMERA.position.set(cameraPosX, cameraPosY, cameraPosZ)
     GLOBAL_SCENE_CAMERA.lookAt(targetX, targetY, targetZ)
 }
 
@@ -281,10 +281,12 @@ const HELPER_SCENE_handlePan = (deltaX, deltaY) => {
 
     const rightX = -Math.sin(theta)
     const rightZ = Math.cos(theta)
+    const horizontalPanDelta = deltaX * GLOBAL_CONFIG_CAMERA.panSpeed
+    const verticalPanDelta = deltaY * GLOBAL_CONFIG_CAMERA.panSpeed
 
-    GLOBAL_SCENE_ORBIT_STATE.targetOffset.x +=  deltaX * GLOBAL_CONFIG_CAMERA.panSpeed * rightX;
-    GLOBAL_SCENE_ORBIT_STATE.targetOffset.z +=  deltaX * GLOBAL_CONFIG_CAMERA.panSpeed * rightZ; // Kenapa pake deltaX juga yaa??
-    GLOBAL_SCENE_ORBIT_STATE.targetOffset.y +=  deltaY * GLOBAL_CONFIG_CAMERA.panSpeed;
+    GLOBAL_SCENE_ORBIT_STATE.targetOffset.x += horizontalPanDelta * rightX;
+    GLOBAL_SCENE_ORBIT_STATE.targetOffset.z += horizontalPanDelta * rightZ; // Kenapa pake deltaX juga yaa??
+    GLOBAL_SCENE_ORBIT_STATE.targetOffset.y += verticalPanDelta;
 
     HELPER_SCENE_updateCameraPosition();
 }
@@ -383,6 +385,102 @@ const HELPER_SCENE_setupResizeHandler = () => {
         GLOBAL_SCENE_CAMERA.aspect = window.innerWidth / window.innerHeight
         GLOBAL_SCENE_CAMERA.updateProjectionMatrix();
         GLOBAL_SCENE_RENDERER.setSize(window.innerWidth, window.innerHeight)
+    })
+}
+
+const HELPER_SCENE_showTooltip = (wellName, x, y) => {
+    if(!GLOBAL_SCENE_TOOLTIP) return
+
+    GLOBAL_SCENE_TOOLTIP.textContent = `Well ${wellName}`
+    GLOBAL_SCENE_TOOLTIP.style.display = 'block'
+    GLOBAL_SCENE_TOOLTIP.style.left = `${x + 15}px`
+    GLOBAL_SCENE_TOOLTIP.style.top = `${y + 15}px`
+}
+
+const HELPER_SCENE_hideTooltip = () => {
+    if (!GLOBAL_SCENE_TOOLTIP) return;
+
+    GLOBAL_SCENE_TOOLTIP.style.display = 'none'
+}
+
+const HELPER_SCENE_checkWellHover = (e) => {
+    if (
+        !GLOBAL_SCENE_RENDERER 
+        || !GLOBAL_SCENE_MOUSE 
+        || !GLOBAL_SCENE_RAYCASTER
+        || !GLOBAL_SCENE_CAMERA
+        || !GLOBAL_SCENE_INSTANCE
+    ) {
+        throw new Error("Instance dari scene yang diperlukan belum diinisialisasi")
+    }
+
+    const now = performance.now()
+    if (now - GLOBAL_SCENE_LAST_RAYCAST_TIME < GLOBAL_SCENE_RAYCAST_THROTTLE) return;
+
+    GLOBAL_SCENE_LAST_RAYCAST_TIME = now
+
+    const rect = GLOBAL_SCENE_RENDERER.domElement.getBoundingClientRect()
+
+    GLOBAL_SCENE_MOUSE.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    GLOBAL_SCENE_MOUSE.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+    
+    GLOBAL_SCENE_RAYCASTER.setFromCamera(GLOBAL_SCENE_MOUSE, GLOBAL_SCENE_CAMERA)
+
+    const wellMeshes = GLOBAL_SCENE_INSTANCE.children.filter(
+        (obj) => obj.userData && obj.userData.type === 'well'
+    )
+
+    const intersects = GLOBAL_SCENE_RAYCASTER.intersectObjects(wellMeshes, false)
+
+    /** @type {import('three').Object3D | null} */
+    let newHoveredWell = null
+
+    for (const intersect of intersects) {
+        if (intersect.object.userData?.type === 'well' && intersect.object.visible) {
+            HELPER_SCENE_showTooltip(intersect.object.userData.name, e.clientX, e.clientY)
+            newHoveredWell = intersect.object
+            break
+        }
+    }
+
+    if (newHoveredWell !== GLOBAL_SCENE_HOVERED_WELL) {
+        const previousWellInstance = GLOBAL_SCENE_HOVERED_WELL?.userData?.wellInstance
+        if (previousWellInstance) {
+            previousWellInstance.unhighlight()
+        }
+
+        const currentWellInstance = newHoveredWell?.userData?.wellInstance
+        if (currentWellInstance) {
+            currentWellInstance.highlight()
+        }
+
+        GLOBAL_SCENE_HOVERED_WELL = newHoveredWell
+    }
+
+    if (!newHoveredWell) {
+        HELPER_SCENE_hideTooltip()
+    }
+}
+
+const HELPER_SCENE_setupMouseInteraction = () => {
+    if (!GLOBAL_SCENE_RENDERER) {
+        throw new Error("Instance dari scene renderer belum diinisialisasi")
+    }
+
+    GLOBAL_SCENE_TOOLTIP = document.getElementById('wellTooltip')
+
+    if (!GLOBAL_SCENE_TOOLTIP) {
+        console.warn('Well tooltip element not found')
+        return
+    }
+
+    GLOBAL_SCENE_RENDERER.domElement.addEventListener('mousemove', (event) => {
+        if (GLOBAL_SCENE_ORBIT_STATE.isDragging){
+            HELPER_SCENE_hideTooltip()
+            return
+        }
+
+        HELPER_SCENE_checkWellHover(event)
     })
 }
 
