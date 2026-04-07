@@ -577,3 +577,143 @@ const SCENE_stopRenderLoop = () => {
     }
 }
 
+/**
+ * @typedef {Object} FaultPanel
+ * @property {import("three").Mesh} mesh
+ * @property {(visible: boolean) => void} setVisible
+ * @property {() => void} dispose
+ */
+
+/** @type {FaultPanel[]} */
+let GLOBAL_FAULT_PANELS = []
+
+const FAULT_createPanel = (
+    p1a, 
+    p1b, 
+    p2a, 
+    p2b, 
+    color = GLOBAL_CONFIG_STYLE.defaultFault3DColor
+) => {
+
+    const A = HELPER_COORD_seismicToWorld(p1a)
+    const B = HELPER_COORD_seismicToWorld(p1b)
+    const C = HELPER_COORD_seismicToWorld(p2a)
+    const D = HELPER_COORD_seismicToWorld(p2b)
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(
+            new Float32Array([
+                A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z,
+                B.x, B.y, B.z, D.x, D.y, D.z, C.x, C.y, C.z
+            ]),
+            3
+        )
+    )
+
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshPhongMaterial({
+        color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: GLOBAL_CONFIG_STYLE.fault3DOpacity,
+        shininess: 50
+    })
+
+    const mesh = new THREE.Mesh(geometry, material)
+    SCENE_add(mesh)
+
+    const setVisible = (visible) => {
+        mesh.visible = visible
+    }
+
+    const dispose = () => {
+        SCENE_remove(mesh)
+        mesh.geometry.dispose()
+        mesh.material.dispose()
+    }
+
+    return {
+        mesh,
+        setVisible,
+        dispose
+    }
+}
+
+/**
+ * @typedef {Object} FaultPoint
+ * @property {number} inline_n
+ * @property {number} crossline_n
+ * @property {number} time
+ * @property {number} fault_plane
+ */
+
+/**
+ * @typedef {Object} FaultStick
+ * @property {number} stick_id
+ * @property {FaultPoint[]} points
+ */
+
+/**
+ * @typedef {Object} FaultApiData
+ * @property {FaultStick[]} sticks
+ */
+
+/** @param {FaultApiData} faultData */
+const FAULT_loadSurfacesFromJson = (faultData) => {
+    try {
+        const sticks = faultData.sticks.sort((a, b) => {
+            return a.stick_id - b.stick_id
+        })
+
+        for (let i = 0; i < sticks.length - 1; i++) {
+            const s1 = sticks[i]
+            const s2 = sticks[i + 1]
+
+            if (s1.points.length === 2 && s2.points.length === 2){
+                if(s1.points[0].fault_plane !== s2.points[0].fault_plane) continue
+
+                const p1 = s1.points
+                const p2 = s2.points
+
+                GLOBAL_FAULT_PANELS.push(
+                    FAULT_createPanel(
+                        {
+                            inline_n: p1[0].inline_n,
+                            crossline_n: p1[0].crossline_n,
+                            time: p1[0].time
+                        },
+                        {
+                            inline_n: p1[1].inline_n,
+                            crossline_n: p1[1].crossline_n,
+                            time: p1[1].time
+                        },
+                        {
+                            inline_n: p2[0].inline_n,
+                            crossline_n: p2[0].crossline_n,
+                            time: p2[0].time
+                        },
+                        {
+                            inline_n: p2[1].inline_n,
+                            crossline_n: p2[1].crossline_n,
+                            time: p2[1].time
+                        },
+                    )
+                )
+            }
+        }
+    } catch (error) {
+        console.error("Failed to load fault: ", error)
+    }
+}
+
+const FAULT_setAllVisible = (visible) => {
+    GLOBAL_FAULT_PANELS.forEach(fault => fault.setVisible(visible))
+}
+
+const FAULT_disposeAll = () => {
+    GLOBAL_FAULT_PANELS.forEach(fault => fault.dispose())
+    GLOBAL_FAULT_PANELS = []
+}
