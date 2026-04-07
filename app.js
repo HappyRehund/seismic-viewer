@@ -717,3 +717,178 @@ const FAULT_disposeAll = () => {
     GLOBAL_FAULT_PANELS.forEach(fault => fault.dispose())
     GLOBAL_FAULT_PANELS = []
 }
+
+/** 
+ * @typedef {Object} HorizonPoint 
+ * @property {number} inline
+ * @property {number} crossline
+ * @property {number} z
+ */
+
+/** 
+ * @typedef {Object} HorizonData 
+ * @property {string} name
+ * @property {HorizonPoint[]} points 
+ * @property {number} z_min
+ * @property {number} z_max
+ */
+
+/**
+ * @typedef {Object} HorizonRange
+ * @property {{min: number, max: number}} inline
+ * @property {{min: number, max: number}} crossline
+ * @property {{min: number, max: number}} z
+ */
+
+/**
+ * @typedef {Object} HorizonComponent
+ * @property {(visible?: boolean) => void} setVisible
+ * @property {() => void} dispose
+ */
+
+/** @type {HorizonComponent[]} */
+let GLOBAL_HORIZON_ITEMS = []
+
+/** @param {HorizonData} horizonData */
+const HORIZON_create = (horizonData) => {
+
+    /** @type {import("three").Points | null} */
+    let pointCloud = null
+
+    /** 
+     * @param {HorizonPoint[]} points
+     * @param {HorizonRange} ranges 
+     */
+    const HELPER_HORIZON_createPointCloud = (
+        points,
+        ranges
+    ) => {
+        const positions = []
+        const colors = []
+        const color = new THREE.Color()
+
+        const zRange = ranges.z.max - ranges.z.min
+
+        // ini bikin pusing nih, point.z kenapa y dan kenapa normalizedZ pake point.z
+        // nanti coba track bareng data yang udah dipunya
+        for (const point of points) {
+            const x = HELPER_COORD_realInlineToX(point.inline)
+            const z = HELPER_COORD_realCrosslineToZ(point.crossline)
+            const y = HELPER_COORD_timeToY(point.z)
+            
+            positions.push(x, y, z)
+
+            const normalizedZ = (point.z - ranges.z.min) / (zRange / 2)
+            
+            color.setHSL(
+                normalizedZ * 0.7,
+                1.0, 
+                0.5
+            )
+
+            colors.push(
+                color.r,
+                color.g,
+                color.b
+            )
+        }
+
+        const geometry = new THREE.BufferGeometry()
+
+        geometry.setAttribute(
+            'position',
+            new THREE.Float32BufferAttribute(positions, 3)
+        )
+
+        geometry.setAttribute(
+            'color',
+            new THREE.Float32BufferAttribute(colors, 3)
+        )
+
+        pointCloud = new THREE.Points(
+            geometry,
+            new THREE.PointsMaterial({
+                size: GLOBAL_CONFIG_STYLE.horizonPointSize,
+                vertexColors: true
+            })
+        )
+
+        SCENE_add(pointCloud)
+    }
+
+    try {
+        const points = horizonData.points
+        if (points && points.length > 0) {
+            let minInline = Infinity
+            let maxInline = -Infinity
+
+            let minCrossline = Infinity
+            let maxCrossline = -Infinity
+
+            for (const point of points) {
+                minInline = Math.min(minInline, point.inline)
+                maxInline = Math.max(maxInline, point.inline)
+
+                minCrossline = Math.min(minCrossline, point.crossline)
+                maxCrossline = Math.max(maxCrossline, point.crossline)
+            }
+
+            HELPER_HORIZON_createPointCloud(
+                points,
+                {
+                    inline: {
+                        min: minInline,
+                        max: maxInline
+                    },
+                    crossline: {
+                        min: minCrossline,
+                        max: maxCrossline
+                    },
+                    z: {
+                        min: horizonData.z_min,
+                        max: horizonData.z_max
+                    }
+                }
+            )
+        }
+    } catch (error) {
+        console.error('Failed to load horizon:', error)
+    }
+
+    let visible = true
+
+    const setVisible = (v) => {
+        visible = v !== undefined ? v : !visible
+
+        if (pointCloud) pointCloud.visible = visible
+    }
+
+    const dispose = () => {
+        if (pointCloud) {
+            SCENE_remove(pointCloud)
+            pointCloud.geometry.dispose()
+
+            pointCloud.material.dispose()
+
+            pointCloud = null
+        }
+    }
+
+    return { setVisible, dispose }
+}
+
+/** 
+ * @param {HorizonData} 
+ * @returns {HorizonComponent}
+ */
+const HORIZON_addFromJson = (horizonData) => {
+    const horizon = HORIZON_create(horizonData)
+
+    GLOBAL_HORIZON_ITEMS.push(horizon)
+
+    return horizon;
+}
+
+const HORIZON_setAllVisible = (visible) => {
+    GLOBAL_HORIZON_ITEMS.forEach(horizon => horizon.setVisible(visible))
+}
