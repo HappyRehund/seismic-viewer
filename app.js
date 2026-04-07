@@ -484,6 +484,7 @@ const HELPER_SCENE_setupMouseInteraction = () => {
     })
 }
 
+
 const SCENE_init = () => {
     GLOBAL_SCENE_INSTANCE = new THREE.Scene();
     GLOBAL_SCENE_INSTANCE.background = new THREE.Color(
@@ -496,4 +497,83 @@ const SCENE_init = () => {
         GLOBAL_CONFIG_CAMERA.near, //near
         GLOBAL_CONFIG_CAMERA.far //far
     )
+
+    GLOBAL_SCENE_RENDERER = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        stencil: false,
+        depth: true
+    })
+
+    GLOBAL_SCENE_RENDERER.setSize(
+        window.innerWidth,
+        window.innerHeight
+    )
+
+    GLOBAL_SCENE_RENDERER.setPixelRatio(
+        Math.min(window.devicePixelRatio, 2)
+    )
+
+    document.body.appendChild(GLOBAL_SCENE_RENDERER.domElement)
+
+    GLOBAL_SCENE_RAYCASTER = new THREE.Raycaster()
+
+    GLOBAL_SCENE_MOUSE = new THREE.Vector2()
+
+    HELPER_SCENE_setupLighting()
+    HELPER_SCENE_creteBoundingBox()
+    HELPER_SCENE_setupCameraControls()
+    HELPER_SCENE_setupResizeHandler()
+    HELPER_SCENE_updateCameraPosition()
+    HELPER_SCENE_setupMouseInteraction()
 }
+
+const SCENE_add = (object) => {
+    if (!GLOBAL_SCENE_INSTANCE) {
+        throw new Error("Instance dari scene belum diinisialisasi")
+    }
+
+    GLOBAL_SCENE_INSTANCE.add(object)
+}
+
+const SCENE_remove = (object) => {
+    if (!GLOBAL_SCENE_INSTANCE) {
+        throw new Error("Instance dari scene belum diinisialisasi")
+    }
+
+    GLOBAL_SCENE_INSTANCE.remove(object)
+}
+
+const SCENE_resetCamera = () => {
+    GLOBAL_SCENE_ORBIT_STATE.theta = GLOBAL_CONFIG_CAMERA.initialTheta
+    GLOBAL_SCENE_ORBIT_STATE.phi = GLOBAL_CONFIG_CAMERA.initialPhi
+    GLOBAL_SCENE_ORBIT_STATE.radius = GLOBAL_CONFIG_CAMERA.initialRadius
+    GLOBAL_SCENE_ORBIT_STATE.targetOffset = {
+        x: 0,
+        y: 0,
+        z: 0
+    }
+
+    HELPER_SCENE_updateCameraPosition()
+}
+
+const SCENE_startRenderLoop = () => {
+    if (!GLOBAL_SCENE_RENDERER || !GLOBAL_SCENE_CAMERA || !GLOBAL_SCENE_INSTANCE) {
+        throw new Error("Instance dari scene renderer belum diinisialisasi")
+    }
+
+    const render = () => {
+        GLOBAL_SCENE_ANIM_FRAME_ID = requestAnimationFrame(render)
+        GLOBAL_SCENE_RENDERER.render(GLOBAL_SCENE_INSTANCE, GLOBAL_SCENE_CAMERA)
+    }
+
+    render();
+}
+
+const SCENE_stopRenderLoop = () => {
+    if (GLOBAL_SCENE_ANIM_FRAME_ID !== null) {
+        cancelAnimationFrame(GLOBAL_SCENE_ANIM_FRAME_ID)
+        GLOBAL_SCENE_ANIM_FRAME_ID = null
+    }
+}
+
