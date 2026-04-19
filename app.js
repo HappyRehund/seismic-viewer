@@ -1149,3 +1149,82 @@ const HELPER_WELL_LOG_segmentToPoints = (
         return points;
     }
 }
+
+
+/**
+ * @param {import('three').Vector3[]} curvePoints
+ * @param {number} wellX
+ * @param {number} wellZ
+ * @param {LogFillConfig} fill
+ */
+const HELPER_WELL_LOG_createFillMesh = (
+    curvePoints,
+    wellX,
+    wellZ,
+    fill
+) => {
+    const refX = fill.direction === 'right'
+        ? wellX + GLOBAL_CONFIG_WELL_LOG.maxLogWidth
+        : wellX - GLOBAL_CONFIG_WELL_LOG.maxLogWidth
+
+    const vertices = []
+    const indices = []
+
+    for (const point of curvePoints){
+        vertices.push(
+            point.x,
+            point.y,
+            point.z
+        )
+
+        vertices.push(
+            refX,
+            point.y,
+            wellZ
+        )
+    }
+
+    for (let i = 0; i < curvePoints.length - 1; i++) {
+        const c1 = i * 2;
+        const r1 = i * 2 + 1;
+
+        const c2 = (i + 1) * 2;
+        const r2 = (i + 1) * 2 + 1;
+
+        indices.push(
+            c1, r1, c2
+        )
+
+        indices.push(
+            c2, r1, r2
+        )
+    }
+
+    if (vertices.length === 0) return null;
+
+    const geometry = new THREE.BufferGeometry();
+
+    geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(vertices, 3)
+    )
+    geometry.setIndex(indices)
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshBasicMaterial({
+        color: fill.color,
+        transparent: true,
+        opacity: fill.opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false
+    })
+
+    const mesh = new THREE.Mesh(
+        geometry,
+        material
+    )
+
+    mesh.renderOrder = 0.5
+
+    return mesh
+}
