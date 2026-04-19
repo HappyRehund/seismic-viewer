@@ -1083,3 +1083,69 @@ const HELPER_WERLL_LOG_splitIntoSegments = (logEntries) => {
 
     return segments;
 }
+
+/**
+ * @typedef {Object} LogFillConfig
+ * @property {boolean} enabled
+ * @property {number} color
+ * @property {number} opacity
+ * @property {string} direction
+ */
+
+/**
+ * @typedef {Object} LogTypeConfig
+ * @property {number} min
+ * @property {number} max
+ * @property {number} color
+ * @property {string} label
+ * @property {LogFillConfig | null} [fill]
+ */
+
+/**
+ * @param {WellLogEntry[]} segment
+ * @param {number} wellX
+ * @param {number} wellZ
+ * @param {LogTypeConfig} config
+ */
+const HELPER_WELL_LOG_segmentToPoints = (
+    segment,
+    wellX,
+    wellZ,
+    config
+) => {
+
+    /** @type {import('three').Vector3[]} */
+    const points = []
+
+    const {
+        min: minVal,
+        max: maxVal
+    } = config;
+
+    for (const item of segment) {
+        if (item.value == null) {
+            throw new Error('value of item in a segment is missing')
+        }
+
+        const twt = HELPER_COORD_normalizeTwt(item.twt);
+        const y = HELPER_COORD_TIME_TO_Y(twt);
+
+        let normalizedValue = (item.value - minVal) / (maxVal - minVal)
+        normalizedValue = Math.max(
+            0,
+            Math.min(1, normalizedValue)
+        )
+
+        const offset = (normalizedValue * 2 - 1) * GLOBAL_CONFIG_WELL_LOG.maxLogWidth;
+
+        points.push(
+            new THREE.Vector3(
+                wellX + offset,
+                y,
+                wellZ
+            )
+        )
+
+        return points;
+    }
+}
