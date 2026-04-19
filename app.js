@@ -31,7 +31,7 @@ const GLOBAL_CONFIG_CAMERA = {
     initialRadius: 6000,
     initialTheta: Math.PI / 4,
     initialPhi: Math.PI / 3,
-    
+
     minRadius: 500,
     maxRadius: 10000,
 
@@ -191,11 +191,11 @@ const HELPER_COORD_normalizeTwt = (twt) => {
 }
 
 const HELPER_COORD_seismicToWorld = (point) => {
-    
+
     const x = HELPER_COORD_inlineToX(point.inline ?? point.inline_n)
     const y = HELPER_COORD_crosslineToZ(point.crossline ?? point.crossline_n)
     const z = HELPER_COORD_timeToY(point.time ?? point.z)
-    
+
     return new THREE.Vector3(
         x,
         y,
@@ -230,7 +230,7 @@ const HELPER_SCENE_creteBoundingBox = () => {
     const boxGeo = new THREE.BoxGeometry(
         imageWidth, // width
         imageHeight, // height
-        imageWidth // depth -> why image width (Rehund asking), why not time?? 
+        imageWidth // depth -> why image width (Rehund asking), why not time??
     )
 
     const edges = new THREE.EdgesGeometry(boxGeo)
@@ -405,8 +405,8 @@ const HELPER_SCENE_hideTooltip = () => {
 
 const HELPER_SCENE_checkWellHover = (e) => {
     if (
-        !GLOBAL_SCENE_RENDERER 
-        || !GLOBAL_SCENE_MOUSE 
+        !GLOBAL_SCENE_RENDERER
+        || !GLOBAL_SCENE_MOUSE
         || !GLOBAL_SCENE_RAYCASTER
         || !GLOBAL_SCENE_CAMERA
         || !GLOBAL_SCENE_INSTANCE
@@ -423,7 +423,7 @@ const HELPER_SCENE_checkWellHover = (e) => {
 
     GLOBAL_SCENE_MOUSE.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     GLOBAL_SCENE_MOUSE.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
-    
+
     GLOBAL_SCENE_RAYCASTER.setFromCamera(GLOBAL_SCENE_MOUSE, GLOBAL_SCENE_CAMERA)
 
     const wellMeshes = GLOBAL_SCENE_INSTANCE.children.filter(
@@ -588,10 +588,10 @@ const SCENE_stopRenderLoop = () => {
 let GLOBAL_FAULT_PANELS = []
 
 const FAULT_createPanel = (
-    p1a, 
-    p1b, 
-    p2a, 
-    p2b, 
+    p1a,
+    p1b,
+    p2a,
+    p2b,
     color = GLOBAL_CONFIG_STYLE.defaultFault3DColor
 ) => {
 
@@ -718,17 +718,17 @@ const FAULT_disposeAll = () => {
     GLOBAL_FAULT_PANELS = []
 }
 
-/** 
- * @typedef {Object} HorizonPoint 
+/**
+ * @typedef {Object} HorizonPoint
  * @property {number} inline
  * @property {number} crossline
  * @property {number} z
  */
 
-/** 
- * @typedef {Object} HorizonData 
+/**
+ * @typedef {Object} HorizonData
  * @property {string} name
- * @property {HorizonPoint[]} points 
+ * @property {HorizonPoint[]} points
  * @property {number} z_min
  * @property {number} z_max
  */
@@ -755,9 +755,9 @@ const HORIZON_create = (horizonData) => {
     /** @type {import("three").Points | null} */
     let pointCloud = null
 
-    /** 
+    /**
      * @param {HorizonPoint[]} points
-     * @param {HorizonRange} ranges 
+     * @param {HorizonRange} ranges
      */
     const HELPER_HORIZON_createPointCloud = (
         points,
@@ -775,14 +775,14 @@ const HORIZON_create = (horizonData) => {
             const x = HELPER_COORD_realInlineToX(point.inline)
             const z = HELPER_COORD_realCrosslineToZ(point.crossline)
             const y = HELPER_COORD_timeToY(point.z)
-            
+
             positions.push(x, y, z)
 
             const normalizedZ = (point.z - ranges.z.min) / (zRange / 2)
-            
+
             color.setHSL(
                 normalizedZ * 0.7,
-                1.0, 
+                1.0,
                 0.5
             )
 
@@ -866,8 +866,8 @@ const HORIZON_create = (horizonData) => {
     const dispose = () => {
         if (pointCloud) {
             SCENE_remove(pointCloud)
-            pointCloud.geometry.dispose()
 
+            pointCloud.geometry.dispose()
             pointCloud.material.dispose()
 
             pointCloud = null
@@ -877,8 +877,8 @@ const HORIZON_create = (horizonData) => {
     return { setVisible, dispose }
 }
 
-/** 
- * @param {HorizonData} 
+/**
+ * @param {HorizonData} horizonData
  * @returns {HorizonComponent}
  */
 const HORIZON_addFromJson = (horizonData) => {
@@ -892,3 +892,165 @@ const HORIZON_addFromJson = (horizonData) => {
 const HORIZON_setAllVisible = (visible) => {
     GLOBAL_HORIZON_ITEMS.forEach(horizon => horizon.setVisible(visible))
 }
+
+const GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER = new THREE.TextureLoader();
+
+/** @param { import('three').Texture } */
+const HELPER_SEISMIC_PLANE_createMesh = (texture) => {
+    const geometry = new THREE.PlaneGeometry(
+        GLOBAL_CONFIG_SEISMIC.imageWidth,
+        GLOBAL_CONFIG_SEISMIC.imageHeight
+    ) // -> ini buat ukuran plane
+
+    geometry.translate(
+        GLOBAL_CONFIG_SEISMIC.imageWidth / 2,
+        0,
+        0
+    )
+
+    return new THREE.Mesh(
+        geometry,
+        new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.DoubleSide,
+            transparent: true
+        })
+    )
+}
+
+/** @param { import('three').Mesh | null } plane */
+/** @param { string } path */
+const HELPER_SEISMIC_PLANE_updateTexture = (plane, path) => {
+
+    GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER.load(
+        path,
+        /** @param { import('three').Texture } */
+        (texture) => {
+            texture.generateMipmaps = false;
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter;
+            texture.needsUpdate = true;
+
+            if (plane) {
+                /** @type {import('three').MeshBasicMaterial} */
+                const material = plane.material
+                if (material.map) {
+                    material.map.dispose();
+                }
+
+                material.map = texture;
+                material.needsUpdate = true;
+            }
+        }
+    )
+}
+
+const SEISMIC_PLANE_createInline = () => {
+
+    /** @type { import('three').Mesh} */
+    let plane = null;
+    let currentIndex = 0;
+
+    GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER.load(
+        GLOBAL_CONFIG_PATH.getInlinePath(0),
+        /** @param { import('three').Texture } */
+        (texture) => {
+
+            plane = HELPER_SEISMIC_PLANE_createMesh(texture);
+            plane.rotation.y = -Math.PI / 2;
+            plane.position.set(0, 0, 0);
+            SCENE_add(plane);
+
+        }
+    )
+
+    const setIndex = (index) => {
+        currentIndex = index;
+        if (plane) {
+            plane.position.x = HELPER_COORD_indexToPosition(
+                currentIndex,
+                GLOBAL_CONFIG_SEISMIC.inlineCount
+            )
+        }
+
+        HELPER_SEISMIC_PLANE_updateTexture(
+            plane,
+            GLOBAL_CONFIG_PATH.getInlinePath(currentIndex)
+        )
+    }
+
+    const dispose = () => {
+        if (plane) {
+            SCENE_remove(plane);
+
+            /** @type {import('three').MeshBasicMaterial} */
+            const material = plane.material
+
+            if (material.map) {
+                material.map.dispose()
+            }
+
+            material.dispose()
+            plane.geometry.dispose()
+            plane = null
+        }
+    }
+
+    return { setIndex, dispose }
+}
+
+const SEISMIC_PLANE_createCrossline = () => {
+
+    /** @type { import('three').Mesh} */
+    let plane = null;
+    let currentIndex = 0;
+
+    GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER.load(
+        GLOBAL_CONFIG_PATH.getCrosslinePath(0),
+        /** @param { import('three').Texture } */
+        (texture) => {
+            plane = HELPER_SEISMIC_PLANE_createMesh(texture);
+            plane.rotation.y = 0;
+            plane.position.set(0, 0, 0);
+            SCENE_add(plane);
+        }
+    )
+
+    const setIndex = (index) => {
+        currentIndex = index;
+        if (plane) {
+            plane.position.z = HELPER_COORD_indexToPosition(
+                currentIndex,
+                GLOBAL_CONFIG_SEISMIC.inlineCount
+            )
+        }
+
+        HELPER_SEISMIC_PLANE_updateTexture(
+            plane,
+            GLOBAL_CONFIG_PATH.getInlinePath(currentIndex)
+        )
+    }
+
+    const dispose = () => {
+        if (plane) {
+            SCENE_remove(plane);
+
+            /** @type {import('three').MeshBasicMaterial} */
+            const material = plane.material
+
+            if (material.map) {
+                material.map.dispose()
+            }
+
+            material.dispose()
+            plane.geometry.dispose()
+            plane = null
+        }
+    }
+
+    return { setIndex, dispose }
+}
+
+
+
+
