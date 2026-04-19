@@ -1051,6 +1051,35 @@ const SEISMIC_PLANE_createCrossline = () => {
     return { setIndex, dispose }
 }
 
+/**
+ * @typedef {Object} WellLogEntry
+ * @property {number} twt
+ * @property {number | null} value
+ */
 
+/**@param {WellLogEntry[]} logEntries*/
+const HELPER_WERLL_LOG_splitIntoSegments = (logEntries) => {
 
+    /** @type {WellLogEntry[][]} */
+    const segments = [];
 
+    /** @type {WellLogEntry[]} */
+    let current = [];
+
+    for (const entry of logEntries) {
+        if (entry.value === null || entry.value === undefined) {
+            if (current.length > 0) {
+                segments.push(current)
+                current = []
+            }
+        } else {
+            current.push(entry)
+        }
+    }
+
+    if (current.length > 0) {
+        segments.push(current)
+    }
+
+    return segments;
+}
