@@ -1393,3 +1393,38 @@ const WELL_LOG_DATA_create = (wellName) => {
         getAvailableLogs
     }
 }
+
+/** @type { Map<string, WellLogDataInstance> } */
+let GLOBAL_WELL_LOG_MAP = new Map();
+
+/**
+ * @typedef {Object} WellLogApiItem
+ * @property {string} wellName
+ * @property {WellLogEntry[]} entries
+ */
+
+/**
+ * 
+ * @param {string} logType 
+ * @param {WellLogApiItem[]} wellLogsArray 
+ */
+const WELL_LOG_addTypeData = (
+    logType,
+    wellLogsArray
+) => {
+
+    for (const wellLog of wellLogsArray) {
+        const wellName = wellLog.wellName
+
+        if (!GLOBAL_WELL_LOG_MAP.has(wellName)) {
+            GLOBAL_WELL_LOG_MAP.set(
+                wellName,
+                WELL_LOG_DATA_create(wellName)
+            )
+        }
+
+        GLOBAL_WELL_LOG_MAP
+            .get(wellName)
+            .setLogEntries(logType, wellLog.entries)
+    }
+} 
