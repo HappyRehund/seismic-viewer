@@ -1428,3 +1428,18 @@ const WELL_LOG_addTypeData = (
             .setLogEntries(logType, wellLog.entries)
     }
 } 
+
+const WELL_LOG_getData = (wellName) => {
+    return GLOBAL_WELL_LOG_MAP.get(wellName)
+}
+
+const WELL_LOG_getAvailableTypes = () => {
+    const types = new Set()
+
+    for (const [ ,logData] of GLOBAL_WELL_LOG_MAP) {
+        logData
+            .getAvailableLogs()
+            .forEach(logType => types.add(logType))
+    }
+    return ['None', ...types]
+}
