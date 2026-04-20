@@ -622,23 +622,23 @@ const FAULT_createPanel = (
         shininess: 50
     })
 
-    const mesh = new THREE.Mesh(geometry, material)
+    const faultMesh = new THREE.Mesh(geometry, material)
     SCENE_add(mesh)
 
-    const setVisible = (visible) => {
+    const setFaultVisible = (visible) => {
         mesh.visible = visible
     }
 
-    const dispose = () => {
+    const disposeFault = () => {
         SCENE_remove(mesh)
         mesh.geometry.dispose()
         mesh.material.dispose()
     }
 
     return {
-        mesh,
-        setVisible,
-        dispose
+        faultMesh,
+        setFaultVisible,
+        disposeFault
     }
 }
 
@@ -857,13 +857,13 @@ const HORIZON_create = (horizonData) => {
 
     let visible = true
 
-    const setVisible = (v) => {
+    const setHorizonVisible = (v) => {
         visible = v !== undefined ? v : !visible
 
         if (pointCloud) pointCloud.visible = visible
     }
 
-    const dispose = () => {
+    const disposeHorizon = () => {
         if (pointCloud) {
             SCENE_remove(pointCloud)
 
@@ -874,7 +874,7 @@ const HORIZON_create = (horizonData) => {
         }
     }
 
-    return { setVisible, dispose }
+    return { setHorizonVisible, disposeHorizon }
 }
 
 /**
@@ -964,7 +964,7 @@ const SEISMIC_PLANE_createInline = () => {
         }
     )
 
-    const setIndex = (index) => {
+    const setInlineIndex = (index) => {
         currentIndex = index;
         if (plane) {
             plane.position.x = HELPER_COORD_indexToPosition(
@@ -979,7 +979,7 @@ const SEISMIC_PLANE_createInline = () => {
         )
     }
 
-    const dispose = () => {
+    const disposeInline = () => {
         if (plane) {
             SCENE_remove(plane);
 
@@ -996,7 +996,7 @@ const SEISMIC_PLANE_createInline = () => {
         }
     }
 
-    return { setIndex, dispose }
+    return { setInlineIndex, disposeInline }
 }
 
 const SEISMIC_PLANE_createCrossline = () => {
@@ -1016,7 +1016,7 @@ const SEISMIC_PLANE_createCrossline = () => {
         }
     )
 
-    const setIndex = (index) => {
+    const setCrosslineIndex = (index) => {
         currentIndex = index;
         if (plane) {
             plane.position.z = HELPER_COORD_indexToPosition(
@@ -1031,7 +1031,7 @@ const SEISMIC_PLANE_createCrossline = () => {
         )
     }
 
-    const dispose = () => {
+    const disposeCrossline = () => {
         if (plane) {
             SCENE_remove(plane);
 
@@ -1048,7 +1048,10 @@ const SEISMIC_PLANE_createCrossline = () => {
         }
     }
 
-    return { setIndex, dispose }
+    return { 
+        setCrosslineIndex, 
+        disposeCrossline 
+    }
 }
 
 /**
