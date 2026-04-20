@@ -1228,3 +1228,126 @@ const HELPER_WELL_LOG_createFillMesh = (
 
     return mesh
 }
+
+/**
+ * @typedef {Object} WellLogDataInstance
+ * @property {string} wellName
+ * @property {Record<string, WellLogEntry[]>} logs
+ * @property {(logType: string, entries: WellLogEntry[]) => void} setLogEntries
+ * @property {(logType: string) => WellLogEntry[]} getLogData
+ * @property {() => string[]} getAvailableLogs
+ */
+
+/**
+ * @typedef {Object} Well
+ * @property {string} name
+ * @property {import('three').Mesh} mesh
+ * @property {WellLogDataInstance | null} logData
+ * @property {(visible: boolean) => void} setVisible
+ * @property {() => void} highlight
+ * @property {() => void} unhighlight
+ * @property {(ld: WellLogDataInstance) => void} setLogData
+ * @property {(logType: string) => void} setLogType
+ * @property {() => string[]} getAvailableLogs
+ * @property {() => string} getCurrentLogType
+ * @property {() => void} dispose
+ */
+
+/**
+ * @param {Well} well
+ * @param {WellLogEntry[]} logEntries
+ * @param {string} logType
+ */
+const WELL_LOG_create = (
+    well,
+    logEntries,
+    logType
+) => {
+    /** @type {import('three').Mesh[] } */
+    const meshes = []
+
+    /** @type {LogTypeConfig} */
+    const config =
+        GLOBAL_CONFIG_WELL_LOG.logTypes[logType]
+        || GLOBAL_CONFIG_WELL_LOG.logTypes['PHIE']
+
+    if (
+        logType !== 'None'
+        && logEntries
+        && logEntries.length > 0
+    ) {
+        const segments = HELPER_WERLL_LOG_splitIntoSegments(logEntries);
+        const wellX = well.mesh.position.x;
+        const wellZ = well.mesh.position.z;
+
+        for (const segment of segments) {
+            if (segment.length < 2) continue;
+
+            const points = HELPER_WELL_LOG_segmentToPoints(
+                segment,
+                wellX,
+                wellZ,
+                config
+            )
+
+            if (points.length < 2) continue;
+
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tubeGeometry = new THREE.TubeGeometry(
+                curve,
+                Math.max(points.length * 2, 50),
+                GLOBAL_CONFIG_WELL_LOG.tubeRadius,
+                GLOBAL_CONFIG_WELL_LOG.curveSegments,
+                false
+            )
+
+            const tubeMaterial = new THREE.MeshPhongMaterial({
+                color: config.color,
+                shininess: 60,
+                transparent: true,
+                opacity: 0.95
+            })
+
+            const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial)
+
+            tubeMesh.renderOrder = 1;
+
+            SCENE_add(tubeMesh);
+            meshes.push(tubeMesh);
+
+            if (config.fill && config.fill.enabled) {
+                const fillMesh = HELPER_WELL_LOG_createFillMesh(
+                    points,
+                    wellX,
+                    wellZ,
+                    config.fill
+                )
+
+                if (fillMesh) {
+                    SCENE_add(fillMesh)
+                    meshes.push(fillMesh)
+                }
+            }
+        }
+    }
+
+    const setVisible = (visible) => {
+        meshes.forEach((m) => {
+            m.visible = visible
+        })
+    }
+
+    const dispose = () => {
+        for (const mesh of meshes) {
+            scene_remove(mesh)
+            mesh.geometry.dispose();
+            mesh.material.dispose();
+        }
+        meshes.length = 0;
+    }
+
+    return {
+        setVisible,
+        dispose
+    }
+}
