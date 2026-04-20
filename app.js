@@ -1354,3 +1354,42 @@ const WELL_LOG_create = (
         dispose
     }
 }
+
+const WELL_LOG_DATA_create = (wellName) => {
+    
+    /** @type {Record<string, WellLogEntry[]>} */
+    const logs = {}
+
+    /**
+     * @param {WellLogEntry[]} entries 
+     * @param {string} logType */
+    const setLegoEntries = (
+        logType,
+        entries
+    ) => {
+        logs[logType] = entries
+    }
+
+    const getLogData = (
+        logType
+    ) => {
+        return logs[logType] || []
+    }
+
+    const getAvailableLogs = () => {
+        return Object
+            .keys(logs)
+            .filter((log) => {
+                logs[log]
+                    .some(d => d.value !== null)
+            })
+    }
+
+    return {
+        wellName,
+        logs,
+        setLegoEntries,
+        getLogData,
+        getAvailableLogs
+    }
+}
