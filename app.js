@@ -1048,9 +1048,9 @@ const SEISMIC_PLANE_createCrossline = () => {
         }
     }
 
-    return { 
-        setCrosslineIndex, 
-        disposeCrossline 
+    return {
+        setCrosslineIndex,
+        disposeCrossline
     }
 }
 
@@ -1356,12 +1356,12 @@ const WELL_LOG_create = (
 }
 
 const WELL_LOG_DATA_create = (wellName) => {
-    
+
     /** @type {Record<string, WellLogEntry[]>} */
     const logs = {}
 
     /**
-     * @param {WellLogEntry[]} entries 
+     * @param {WellLogEntry[]} entries
      * @param {string} logType */
     const setLegoEntries = (
         logType,
@@ -1404,9 +1404,9 @@ let GLOBAL_WELL_LOG_MAP = new Map();
  */
 
 /**
- * 
- * @param {string} logType 
- * @param {WellLogApiItem[]} wellLogsArray 
+ *
+ * @param {string} logType
+ * @param {WellLogApiItem[]} wellLogsArray
  */
 const WELL_LOG_addTypeData = (
     logType,
@@ -1427,7 +1427,7 @@ const WELL_LOG_addTypeData = (
             .get(wellName)
             .setLogEntries(logType, wellLog.entries)
     }
-} 
+}
 
 const WELL_LOG_getData = (wellName) => {
     return GLOBAL_WELL_LOG_MAP.get(wellName)
@@ -1442,4 +1442,190 @@ const WELL_LOG_getAvailableTypes = () => {
             .forEach(logType => types.add(logType))
     }
     return ['None', ...types]
+}
+
+/** @param {CanvasRenderingContext2D} ctx */
+const HELPER_WELL_roundRect = (
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius
+) => {
+    ctx.beginPath();
+    ctx.moveTo(
+        x + radius,
+        y
+    );
+    ctx.lineTo(
+        x + width - radius,
+        y
+    );
+    ctx.quadraticCurveTo(
+        x + width,
+        y,
+        x + width,
+        y + radius
+    );
+    ctx.lineTo(
+        x + width,
+        y + height - radius
+    );
+    ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - radius,
+        y + height
+    );
+    ctx.lineTo(
+        x + radius,
+        y + height
+    );
+    ctx.quadraticCurveTo(
+        x,
+        y + height,
+        x,
+        y + height - radius
+    );
+    ctx.lineTo(
+        x,
+        y + radius
+    );
+    ctx.quadraticCurveTo(
+        x,
+        y,
+        x + radius,
+        y
+    );
+    ctx.closePath();
+}
+
+/**
+ * @param {Well} well
+ * @param {string} text
+ */
+const WELL_createLabel = (
+    well,
+    text
+) => {
+
+    /** @type {import('three').Sprite | null} */
+    let sprite = null
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+
+    if (!context) throw new Error('Failed to get 2D context');
+
+    const fontSize = 48;
+    const padding = 20;
+
+    context.font = `bold ${fontSize}px Arial`
+
+    const textMetrics = context.measureText(text);
+
+    canvas.width = textMetrics.width + padding * 2;
+    canvas.height = fontSize + padding * 2;
+
+    context.fillStyle = 'rgba(0, 0, 0, 0.7)'
+    HELPER_WELL_roundRect(
+        context,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        8
+    )
+
+    context.fill();
+
+    context.font = `bold ${fontSize}px Arial`
+    context.fillStyle = '#ffffff'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+
+    context.fillText(
+        text,
+        canvas.width / 2,
+        canvas.height / 2
+    )
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true
+
+    sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false
+        })
+    )
+
+    const aspectRatio = canvas.width / canvas.height;
+    const labelHeight = 15;
+
+    sprite
+        .scale
+        .set(
+            labelHeight * aspectRatio,
+            labelHeight,
+            1
+        )
+
+    sprite.renderOrder = 100;
+    sprite.userData = {
+        type: 'wellLabel',
+        wellName: well.name
+    }
+
+    const updatePosition = () => {
+        if (!sprite || !well.mesh) return
+
+        const wellMesh = well.mesh;
+
+        /** @type {import('three').CylinderGeometry} */
+        const wellMeshGeometry = wellMesh.geometry;
+
+        const wellHeight = wellMeshGeometry.parameters.height;
+
+        const wellTopY = wellMesh.position.y + wellHeight / 2;
+
+        sprite
+            .position
+            .set(
+                wellMesh.position.x,
+                wellTopY + 20,
+                wellMesh.position.z
+            )
+    }
+
+    updatePosition();
+    SCENE_add(sprite);
+
+    const setVisible = (visible) => {
+        if (sprite) {
+            sprite.visible = visible
+        }
+    }
+
+    const dispose = () => {
+        if (sprite) {
+            SCENE_remove(sprite);
+
+            /** @type {import('three').SpriteMaterial} */
+            const spriteMaterial = sprite.material
+
+            spriteMaterial.map.dispose();
+            spriteMaterial.dispose();
+            sprite = null;
+        }
+    }
+
+    return {
+        updatePosition,
+        setVisible,
+        dispose
+    }
 }
