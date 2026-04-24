@@ -528,6 +528,7 @@ const SCENE_init = () => {
     HELPER_SCENE_setupMouseInteraction()
 }
 
+/** @param {import('three').Object3D} object*/
 const SCENE_add = (object) => {
     if (!GLOBAL_SCENE_INSTANCE) {
         throw new Error("Instance dari scene belum diinisialisasi")
@@ -1131,7 +1132,7 @@ const HELPER_WELL_LOG_segmentToPoints = (
         }
 
         const twt = HELPER_COORD_normalizeTwt(item.twt);
-        const y = HELPER_COORD_TIME_TO_Y(twt);
+        const y = HELPER_COORD_timeToY(twt);
 
         let normalizedValue = (item.value - minVal) / (maxVal - minVal)
         normalizedValue = Math.max(
@@ -1628,4 +1629,305 @@ const WELL_createLabel = (
         setVisible,
         dispose
     }
+}
+
+/**
+ * @typedef {Object} WellApiData
+ * @property {string} wel_name
+ * @property {number} inline
+ * @property {number} crossline
+ * @property {number} top
+ * @property {number} bottom
+ */
+
+/**
+ * @typedef {Object} WellLogInstance
+ * @property {(visible: boolean) => void } setVisible
+ * @property {() => void} dispose
+/**
+ * @typedef {Object} WellLabelInstance
+ * @property {(visible: boolean) => void } setVisible
+ * @property {() => void} dispose
+ * @property {() => void} updatePosition
+ */
+
+/** @param {WellApiData} wellData */
+const WELL_create = (
+    wellData
+) => {
+
+    const name = wellData.wel_name;
+    const originalColor = GLOBAL_CONFIG_STYLE.defaultWellColor;
+
+    /** @type {import('three').Mesh | null} */
+    let mesh = null
+    let isHighlighted = false
+
+    /** @type {WellLogDataInstance} | null */
+    let logData = null;
+
+    let currentLogType = 'None';
+
+    /** @type {WellLogInstance} | null */
+    let wellLog = null;
+
+    /** @type {WellLabelInstance} */
+    let label = null;
+
+    const x = HELPER_COORD_inlineToX(wellData.inline)
+    const z = HELPER_COORD_crosslineToZ(wellData.crossline)
+
+    const yTop = HELPER_COORD_timeToY(wellData.top)
+    const yBottom = HELPER_COORD_timeToY(wellData.bottom)
+
+    const height = Math.abs(yTop - yBottom)
+    const centerY = (yTop + yBottom) / 2
+
+    const geometry = new THREE.CylinderGeometry(
+        GLOBAL_CONFIG_STYLE.wellRadius,
+        GLOBAL_CONFIG_STYLE.wellRadius,
+        height,
+        32
+    )
+
+    const material = new THREE.MeshPhongMaterial({
+        color: originalColor,
+        shininess: 100,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false
+    })
+
+    mesh = new THREE.Mesh(geometry, material)
+    mesh.renderOrder = 0;
+    mesh
+        .position
+        .set(
+            x,
+            centerY,
+            z
+        )
+
+    if (!mesh) {
+        throw new Error('something happened with the mesh creation')
+    }
+    /** @type {Well} */
+    const well = {
+        name,
+        mesh: mesh,
+        get logData() {
+            return logData
+        },
+        setVisible: null,
+        highlight: null,
+        unhighlight: null,
+        setLogData: null,
+        setLogType: null,
+        getAvailableLogs: null,
+        getCurrentLogType: null,
+        dispose: null
+    }
+
+    mesh.userData = {
+        type: 'well',
+        name,
+        wellInstance: well
+    }
+
+    SCENE_add(mesh);
+
+    label = WELL_createLabel(well, name)
+
+    const extendToLogRange = () => {
+        if (!logData || !mesh) return
+
+        let minTWT = Infinity;
+        let maxTWT = -Infinity;
+        let checked = 0;
+
+        const logKeys = Object.keys(logData.logs)
+
+        for (const logKey of logKeys) {
+            const entries = logData.logs[logKey];
+
+            if (
+                !entries
+                || !Array.isArray(entires)
+            ) continue
+
+            for (let i = 0; i < entries.length; i++){
+                const entry = entries[i];
+
+                if (
+                    entry.value !== null
+                    && entry.value !== undefined
+                ) {
+                    const twt = Math.abs(entry.twt)
+
+                    if (twt < minTWT) minTWT = twt;
+                    if (twt > maxTWT) maxTWT = twt
+                    checked++
+                }
+            }
+        }
+
+        if (
+            checked === 0
+            || minTWT === Infinity
+            || maxTWT === -Infinity
+        ) return
+
+        minTWT = Math.min(
+            minTWT,
+            wellData.top
+        )
+
+        maxTWT = Math.max(
+            maxTWT,
+            wellData.bottom
+        )
+
+        const newYTop = HELPER_COORD_timeToY(minTWT);
+        const newYBottom = HELPER_COORD_timeToY(maxTWT);
+
+        const newHeight = Math.abs(newYTop = newYBottom)
+        const newCenterY = (newYTop + newYBottom) / 2
+
+        console.log(`[Well ${name}] extend: TWT ${minTWT}-${maxTWT}ms, height ${newHeight}, centerY ${newCenterY} (checked ${checked} entries across ${logKeys.length} log types)`);
+
+        const oldX = mesh.position.x;
+        const oldZ = mesh.position.z;
+        const oldVisible = mesh.visible;
+
+        SCENE_remove(mesh);
+
+        mesh.geometry.dispose();
+
+        /** @type {import('three').MeshPhongMaterial} */
+        const meshMaterial = mesh.material
+        meshMaterial.dispose();
+
+        const newGeometry = new THREE.CylinderGeometry(
+            GLOBAL_CONFIG_STYLE.wellRadius,
+            GLOBAL_CONFIG_STYLE.wellRadius,
+            newHeight,
+            32
+        )
+
+        const newMaterial = new THREE.MeshPhongMaterial({
+            color: originalColor,
+            shininess: 100,
+            transparent: true,
+            opacity: 0.4,
+            depthWrite: false
+        })
+
+        mesh = new THREE.Mesh(newGeometry, newMaterial);
+
+        mesh.renderOrder = 0;
+        mesh
+            .position
+            .set(
+                oldX,
+                newCenterY,
+                oldZ
+            )
+        mesh.visible = oldVisible
+        mesh.userData = {
+            type: 'well',
+            name,
+            wellInstance: well
+        }
+        well.mesh = mesh;
+
+        SCENE_add(mesh);
+    }
+
+    well.setVisible = (visible) => {
+        if (mesh) mesh.visible = visible
+        if (wellLog) wellLog.setVisible(visible)
+        if (label) label.setVisible(visible)
+    }
+
+    well.highlight = () => {
+        if (mesh && !isHighlighted) {
+            const color = new THREE.Color(originalColor);
+            color.multiplyScalar(0.6);
+            /** @type {import('three').MeshPhongMaterial} */
+            const meshMaterial = mesh.material
+            meshMaterial.color.copy(color);
+            isHighlighted = true;
+        }
+    }
+
+    well.unhighlight = () => {
+        if (mesh && isHighlighted) {
+            /** @type {import('three').MeshPhongMaterial} */
+            const meshMaterial = mesh.material
+            meshMaterial.color.set(originalColor);
+            isHighlighted = false
+        }
+    }
+
+    /** @param {WellLogDataInstance} */
+    well.setLogData = (newLogData) => {
+        logData = newLogData
+        extendToLogRange();
+        if (label) label.updatePosition();
+    }
+
+    well.setLogType = (logType) => {
+        if (wellLog) {
+            wellLog.dispose();
+            wellLog = null;
+        }
+
+        currentLogType = logType;
+
+        if (
+            logType !== 'None'
+            && logData
+        ) {
+            const entries = logData.getLogData(logType)
+            if (
+                entries
+                && entries.length > 0
+            ) {
+                wellLog = WELL_LOG_create(
+                    well,
+                    entries,
+                    logType
+                )
+            }
+        }
+    }
+
+    well.getAvailableLogs = () => {
+        if (!logData) return ['None']
+        return ['None', ...logData.getAvailableLogs()]
+    }
+
+    well.getCurrentLogType = () => currentLogType;
+
+    well.dispose = () => {
+        if (label) {
+            label.dispose()
+            label = null
+        }
+
+        if (wellLog) {
+            wellLog.dispose()
+            wellLog = null
+        }
+
+        if (mesh) {
+            scene_remove(mesh)
+            mesh.geometry.dispose()
+            const meshMaterial = mesh.material
+            meshMaterial.dispose()
+            mesh = null
+        }
+    }
+
+    return well;
 }
