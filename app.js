@@ -106,7 +106,7 @@ const GLOBAL_CONFIG_WELL_LOG = {
         }
     },
     maxLogWidth: 10,
-    tubeRadiues: 1,
+    tubeRadius: 1,
     curveSegments: 12
 }
 
@@ -193,8 +193,8 @@ const HELPER_COORD_normalizeTwt = (twt) => {
 const HELPER_COORD_seismicToWorld = (point) => {
 
     const x = HELPER_COORD_inlineToX(point.inline ?? point.inline_n)
-    const y = HELPER_COORD_crosslineToZ(point.crossline ?? point.crossline_n)
-    const z = HELPER_COORD_timeToY(point.time ?? point.z)
+    const y = HELPER_COORD_timeToY(point.time ?? point.z)
+    const z = HELPER_COORD_crosslineToZ(point.crossline ?? point.crossline_n)
 
     return new THREE.Vector3(
         x,
@@ -624,22 +624,22 @@ const FAULT_createPanel = (
     })
 
     const faultMesh = new THREE.Mesh(geometry, material)
-    SCENE_add(mesh)
+    SCENE_add(faultMesh)
 
-    const setFaultVisible = (visible) => {
-        mesh.visible = visible
+    const setVisible = (visible) => {
+        faultMesh.visible = visible
     }
 
-    const disposeFault = () => {
-        SCENE_remove(mesh)
-        mesh.geometry.dispose()
-        mesh.material.dispose()
+    const dispose = () => {
+        SCENE_remove(faultMesh)
+        faultMesh.geometry.dispose()
+        faultMesh.material.dispose()
     }
 
     return {
-        faultMesh,
-        setFaultVisible,
-        disposeFault
+        mesh: faultMesh,
+        setVisible,
+        dispose
     }
 }
 
@@ -858,13 +858,13 @@ const HORIZON_create = (horizonData) => {
 
     let visible = true
 
-    const setHorizonVisible = (v) => {
+    const setVisible = (v) => {
         visible = v !== undefined ? v : !visible
 
         if (pointCloud) pointCloud.visible = visible
     }
 
-    const disposeHorizon = () => {
+    const dispose = () => {
         if (pointCloud) {
             SCENE_remove(pointCloud)
 
@@ -875,7 +875,7 @@ const HORIZON_create = (horizonData) => {
         }
     }
 
-    return { setHorizonVisible, disposeHorizon }
+    return { setVisible, dispose }
 }
 
 /**
@@ -965,7 +965,7 @@ const SEISMIC_PLANE_createInline = () => {
         }
     )
 
-    const setInlineIndex = (index) => {
+    const setIndex = (index) => {
         currentIndex = index;
         if (plane) {
             plane.position.x = HELPER_COORD_indexToPosition(
@@ -980,7 +980,7 @@ const SEISMIC_PLANE_createInline = () => {
         )
     }
 
-    const disposeInline = () => {
+    const dispose = () => {
         if (plane) {
             SCENE_remove(plane);
 
@@ -997,7 +997,7 @@ const SEISMIC_PLANE_createInline = () => {
         }
     }
 
-    return { setInlineIndex, disposeInline }
+    return { setIndex, dispose }
 }
 
 const SEISMIC_PLANE_createCrossline = () => {
@@ -1017,22 +1017,22 @@ const SEISMIC_PLANE_createCrossline = () => {
         }
     )
 
-    const setCrosslineIndex = (index) => {
+    const setIndex = (index) => {
         currentIndex = index;
         if (plane) {
             plane.position.z = HELPER_COORD_indexToPosition(
                 currentIndex,
-                GLOBAL_CONFIG_SEISMIC.inlineCount
+                GLOBAL_CONFIG_SEISMIC.crosslineCount
             )
         }
 
         HELPER_SEISMIC_PLANE_updateTexture(
             plane,
-            GLOBAL_CONFIG_PATH.getInlinePath(currentIndex)
+            GLOBAL_CONFIG_PATH.getCrosslinePath(currentIndex)
         )
     }
 
-    const disposeCrossline = () => {
+    const dispose = () => {
         if (plane) {
             SCENE_remove(plane);
 
@@ -1050,8 +1050,8 @@ const SEISMIC_PLANE_createCrossline = () => {
     }
 
     return {
-        setCrosslineIndex,
-        disposeCrossline
+        setIndex,
+        dispose
     }
 }
 
@@ -1150,8 +1150,9 @@ const HELPER_WELL_LOG_segmentToPoints = (
             )
         )
 
-        return points;
     }
+
+    return points;
 }
 
 
@@ -1343,7 +1344,7 @@ const WELL_LOG_create = (
 
     const dispose = () => {
         for (const mesh of meshes) {
-            scene_remove(mesh)
+            SCENE_remove(mesh)
             mesh.geometry.dispose();
             mesh.material.dispose();
         }
@@ -1364,7 +1365,7 @@ const WELL_LOG_DATA_create = (wellName) => {
     /**
      * @param {WellLogEntry[]} entries
      * @param {string} logType */
-    const setLegoEntries = (
+    const setLogEntries = (
         logType,
         entries
     ) => {
@@ -1381,7 +1382,7 @@ const WELL_LOG_DATA_create = (wellName) => {
         return Object
             .keys(logs)
             .filter((log) => {
-                logs[log]
+                return logs[log]
                     .some(d => d.value !== null)
             })
     }
@@ -1389,7 +1390,7 @@ const WELL_LOG_DATA_create = (wellName) => {
     return {
         wellName,
         logs,
-        setLegoEntries,
+        setLogEntries,
         getLogData,
         getAvailableLogs
     }
@@ -1644,6 +1645,7 @@ const WELL_createLabel = (
  * @typedef {Object} WellLogInstance
  * @property {(visible: boolean) => void } setVisible
  * @property {() => void} dispose
+ */
 /**
  * @typedef {Object} WellLabelInstance
  * @property {(visible: boolean) => void } setVisible
@@ -1663,7 +1665,7 @@ const WELL_create = (
     let mesh = null
     let isHighlighted = false
 
-    /** @type {WellLogDataInstance} | null */
+    /** @type {WellLogDataInstance | null} */
     let logData = null;
 
     let currentLogType = 'None';
@@ -1752,7 +1754,7 @@ const WELL_create = (
 
             if (
                 !entries
-                || !Array.isArray(entires)
+                || !Array.isArray(entries)
             ) continue
 
             for (let i = 0; i < entries.length; i++){
@@ -1790,7 +1792,7 @@ const WELL_create = (
         const newYTop = HELPER_COORD_timeToY(minTWT);
         const newYBottom = HELPER_COORD_timeToY(maxTWT);
 
-        const newHeight = Math.abs(newYTop = newYBottom)
+        const newHeight = Math.abs(newYTop - newYBottom)
         const newCenterY = (newYTop + newYBottom) / 2
 
         console.log(`[Well ${name}] extend: TWT ${minTWT}-${maxTWT}ms, height ${newHeight}, centerY ${newCenterY} (checked ${checked} entries across ${logKeys.length} log types)`);
@@ -1921,7 +1923,7 @@ const WELL_create = (
         }
 
         if (mesh) {
-            scene_remove(mesh)
+            SCENE_remove(mesh)
             mesh.geometry.dispose()
             const meshMaterial = mesh.material
             meshMaterial.dispose()
@@ -1965,7 +1967,7 @@ const WELL_loadFromJson = (apiData) => {
 
             GLOBAL_WELL_ITEMS.push(well)
 
-            GLOBAL_WELL_MAP.set(wellData.well_name)
+            GLOBAL_WELL_MAP.set(wellData.well_name, well)
         }
 
         console.log(
@@ -1973,7 +1975,7 @@ const WELL_loadFromJson = (apiData) => {
         )
 
         if (GLOBAL_WELL_ON_LOADED) {
-            GLOBAL_WELL_ON_LOADED(WELL_get_names())
+            GLOBAL_WELL_ON_LOADED(WELL_getNames())
         }
     } catch (error) {
         console.error('Failed to load wells:', error)
@@ -1981,11 +1983,11 @@ const WELL_loadFromJson = (apiData) => {
 }
 
 const WELL_getNames = () => {
-    GLOBAL_WELL_ITEMS.map(well => well.name)
+    return GLOBAL_WELL_ITEMS.map(well => well.name)
 }
 
 const WELL_getByName = (name) => {
-    GLOBAL_WELL_MAP.get(name)
+    return GLOBAL_WELL_MAP.get(name)
 }
 
 const WELL_setVisible = (
@@ -2049,19 +2051,6 @@ const WELL_getCurrentLogType = (wellName) => {
 }
 
 const WELL_setAllLogType = (logType) => {
-    let changedCount = 0
-
-    for (const well of GLOBAL_WELL_ITEMS) {
-        if (well.logData) {
-            well.setLogType(logType)
-            changedCount++
-        }
-    }
-
-    return changedCount
-}
-
-const WELL_setAllLogType = (logType) => {
     let changedCount = 0;
 
     for (const well of GLOBAL_WELL_ITEMS) {
@@ -2075,7 +2064,7 @@ const WELL_setAllLogType = (logType) => {
 }
 
 const WELL_disposeAll = () => {
-    GLOBAL_WELL_ITMES.forEach(w => w.dispose())
+    GLOBAL_WELL_ITEMS.forEach(w => w.dispose())
     GLOBAL_WELL_ITEMS = []
     GLOBAL_WELL_MAP.clear()
 }
@@ -2157,7 +2146,7 @@ let GLOBAL_LOADING_IS_COMPLETE = false;
 
 const HELPER_LOADING_notify = () => {
     const state = LOADING_getState();
-    GLOBAL_LOADING_LISTENERS.forEach(callback => callback())
+    GLOBAL_LOADING_LISTENERS.forEach(callback => callback(state))
 }
 
 const HELPER_LOADING_checkAllComplete = () => {
@@ -2245,7 +2234,7 @@ const LOADING_skipTask = (
     HELPER_LOADING_checkAllComplete();
 }
 
-/** @param {(state: LoadingState) => void} */
+/** @param {(state: LoadingState) => void} callback*/
 const LOADING_addListener = (callback) => {
     GLOBAL_LOADING_LISTENERS.push(callback)
 }
@@ -2260,10 +2249,10 @@ const LOADING_getState = () => {
 
     return {
         tasks,
-        progressToShow,
+        totalProgress: progressToShow,
         isComplete: GLOBAL_LOADING_IS_COMPLETE,
         hasErrors: tasks.some(task => task.status === 'error'),
-        currentTask: tasks.find(task => task.status === 'loading')
+        currentTask: (tasks.find(task => task.status === 'loading')?.label ?? null)
     }
 }
 
@@ -2314,6 +2303,9 @@ const HELPER_DATA_transformHorizon = (rawHorizons) => {
                 crossline: horizon.Crossline,
                 z: horizon.bottom
             })
+
+            bottomMin = Math.min(bottomMin, horizon.bottom)
+            bottomMax = Math.max(bottomMax, horizon.bottom)
         }
     }
 
@@ -2365,9 +2357,9 @@ const DATA_loadAll = async () => {
     let faultFailed = false;
 
     LOADING_registerTask('horizon', 'Horizons')
-    loading_register_task('well', 'Wells');
-    loading_register_task('wellLog', 'Well Logs');
-    loading_register_task('fault', 'Faults');
+    LOADING_registerTask('well', 'Wells');
+    LOADING_registerTask('wellLog', 'Well Logs');
+    LOADING_registerTask('fault', 'Faults');
 
     try {
         LOADING_updateTask(
@@ -2415,7 +2407,7 @@ const DATA_loadAll = async () => {
         )
 
         /** @type {WellApiPayload} */
-        const wellData = await api_fetch_json('well');
+        const wellData = await API_fetchJson('well');
 
         WELL_loadFromJson(wellData)
         LOADING_completeTask(
@@ -2642,9 +2634,9 @@ const HELPER_UI_wellPanelUpdateToggleAllButton = () => {
     let allChecked = true
 
     GLOBAL_UI_WELL_PANEL_CHECKBOXES
-        .forEach((callback) => {
-            if (callback.checked) {
-                allCheckedFalse
+        .forEach((checkbox) => {
+            if (!checkbox.checked) {
+                allChecked = false
             }
         })
 
@@ -2665,15 +2657,22 @@ const UI_initWellTogglePanel = (
     GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT = document.getElementById('setAllLogTypeSelect')
 
     if (GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN) {
-        
-        GLOBAL_UI_WELL_PANEL_ALL_VISIBLE = !GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
-
         GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE 
             ? 'Hide All'
             : 'Show All'
 
-        WELL_setAllVisible(GLOBAL_UI_WELL_PANEL_ALL_VISIBLE)
-        GLOBAL_UI_WELL_PANEL_CHECKBOXES.forEach(callback => callback.checked = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE)
+        GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.addEventListener('click', () => {
+            GLOBAL_UI_WELL_PANEL_ALL_VISIBLE = !GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
+
+            GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
+                ? 'Hide All'
+                : 'Show All'
+
+            WELL_setAllVisible(GLOBAL_UI_WELL_PANEL_ALL_VISIBLE)
+            GLOBAL_UI_WELL_PANEL_CHECKBOXES.forEach((checkbox) => {
+                checkbox.checked = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
+            })
+        })
     }
 
     if (GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT) {
@@ -2775,7 +2774,7 @@ const UI_populateWellPanel = (wellNames) => {
 
 const UI_refreshWellLogSelectors = () => {
     if (GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT) {
-        const allLogTypes = new Set<string>(['None']);
+        const allLogTypes = new Set(['None']);
 
         GLOBAL_WELL_ITEMS.forEach((well) => {
             if (well.logData) {
@@ -2789,7 +2788,7 @@ const UI_refreshWellLogSelectors = () => {
         
         [...allLogTypes]
             .filter(log => log !== 'None')
-            .sort().
+            .sort()
             forEach((logType) => {
                 const option = document.createElement('option');
                 option.value = logType;
@@ -2890,17 +2889,17 @@ const UI_initControls = (
     crosslinePlane,
 ) => {
 
-    if (inlinePlane && apiAvailable) {
+    if (inlinePlane && crosslinePlane && apiAvailable) {
         UI_createSliderControl(
             'inlineSlider', 
             'label_inline', 
-            GLOBAL_CONFIG_SEISMIC.getMaxInlineIndex,
+            GLOBAL_CONFIG_SEISMIC.getMaxInlineIndex(),
             (value) => inlinePlane.setIndex(value)
         );
         UI_createSliderControl(
             'crosslineSlider', 
             'label_crossline', 
-            GLOBAL_CONFIG_SEISMIC.getMaxCrosslineIndex,
+            GLOBAL_CONFIG_SEISMIC.getMaxCrosslineIndex(),
             (value) => crosslinePlane.setIndex(value)
         );
     } else {
@@ -2927,7 +2926,7 @@ const UI_initControls = (
             (visible) => FAULT_setAllVisible(visible)
         );
     } else {
-        HELPER_UI_DISABLE_BUTTON('toggleFaultBtn', 'Fault N/A');
+        HELPER_UI_disableButton('toggleFaultBtn', 'Fault N/A');
     }
 
     if (!result.wellFailed) {
@@ -3058,7 +3057,7 @@ const HELPER_UI_LOADING_updateTasks = (tasks) => {
             const msgElement = document.createElement('span');
             msgElement.style.cssText = 
                 'margin-left: auto; font-size: 11px; opacity: 0.7;';
-                
+
             msgElement.textContent = task.message;
             taskElement.appendChild(msgElement);
         }
@@ -3066,3 +3065,211 @@ const HELPER_UI_LOADING_updateTasks = (tasks) => {
         GLOBAL_UI_LOADING_TASKS_CONTAINER.appendChild(taskElement);
     }
 };
+
+const UI_LOADING_HideScreen = () => {
+    if (GLOBAL_UI_LOADING_SCREEN) {
+        GLOBAL_UI_LOADING_SCREEN
+            .classList
+            .add('hidden');
+    } 
+    if (GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR) {
+        GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR
+            .style
+            .display = 'block';
+    }
+};
+
+const UI_LOADING_ForceHideScreen = () => {
+    if (GLOBAL_UI_LOADING_SCREEN) {
+        GLOBAL_UI_LOADING_SCREEN
+            .style
+            .display = 'none';
+    } 
+};
+
+/** @param {boolean} hasErrors */
+const HELPER_UI_LOADING_OnComplete = (hasErrors) => {
+    if (GLOBAL_UI_LOADING_STATUS_TEXT) {
+        GLOBAL_UI_LOADING_STATUS_TEXT.textContent = hasErrors
+            ? 'Completed with some issues'
+            : 'Loading complete!';
+    }
+
+    if (GLOBAL_UI_LOADING_PROGRESS_FILL) {
+        GLOBAL_UI_LOADING_PROGRESS_FILL
+            .style
+            .width = '100%';
+    } 
+
+    setTimeout(
+        () => UI_LOADING_HideScreen(), 
+        hasErrors 
+            ? 1500 
+            : 800
+    );
+};
+
+/** @param {LoadingState} state */
+const HELPER_UI_LOADING_onStateChange = (state) => {
+    if (GLOBAL_UI_LOADING_PROGRESS_FILL) {
+        GLOBAL_UI_LOADING_PROGRESS_FILL
+            .style
+            .width = 
+                `${
+                    Math.min(
+                        100, 
+                        state.totalProgress
+                    )
+                }%`;
+    }
+    if (GLOBAL_UI_LOADING_STATUS_TEXT) {
+        GLOBAL_UI_LOADING_STATUS_TEXT.textContent = 
+            state.currentTask
+                ? `Loading ${state.currentTask}...`
+                : 'Processing...';
+    }
+    HELPER_UI_LOADING_updateTasks(state.tasks);
+
+    if (state.isComplete) {
+        HELPER_UI_LOADING_OnComplete(state.hasErrors);
+    } 
+}
+
+const UI_LOADING_setDataSource = (sourceName) => {
+    if (GLOBAL_UI_LOADING_DATA_SOURCE_NAME) {
+        GLOBAL_UI_LOADING_DATA_SOURCE_NAME.textContent = sourceName;
+    }
+
+    if (GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE) {
+        GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE.textContent = sourceName;
+    }
+}
+
+const UI_LOADING_init = () => {
+    GLOBAL_UI_LOADING_SCREEN = document.getElementById('loadingScreen');
+    
+    GLOBAL_UI_LOADING_PROGRESS_FILL = document.getElementById('loadingProgressFill');
+    
+    GLOBAL_UI_LOADING_STATUS_TEXT = document.getElementById('loadingStatus');
+    
+    GLOBAL_UI_LOADING_TASKS_CONTAINER = document.getElementById('loadingTasks');
+    
+    GLOBAL_UI_LOADING_DATA_SOURCE_NAME = document.getElementById('dataSourceName');
+    
+    GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR = document.getElementById('dataSourceIndicator');
+    
+    GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE = document.getElementById('currentDataSource');
+
+    LOADING_addListener((state) => HELPER_UI_LOADING_onStateChange(state));
+};
+
+const APP_init = async () => {
+    console.log('Starting Seismic Viewer...')
+
+    UI_LOADING_init();
+
+    try {
+        SCENE_init()
+    } catch (error) {
+        console.error('Failed to init scene!!!')
+        UI_LOADING_ForceHideScreen()
+        return
+    }
+
+    const apiAvailable = await API_isAvailable();
+
+    /** @type {SeismicPlane | null} */
+    let inlinePlane = null
+
+    /** @type {SeismicPlane | null} */
+    let crosslinePlane = null
+
+    if (apiAvailable) {
+        inlinePlane = SEISMIC_PLANE_createInline();
+        crosslinePlane = SEISMIC_PLANE_createCrossline();
+    }
+
+    /** @type {DataLoadResult} */
+    let result;
+
+    if (!apiAvailable) {
+        LOADING_registerTask('horizon', 'Horizons')
+        LOADING_registerTask('well', 'Wells')
+        LOADING_registerTask('wellLog', 'Well Logs');
+        LOADING_registerTask('fault', 'Faults');
+
+        LOADING_skipTask('horizon', 'Backend tidak tersedia');
+        LOADING_skipTask('well', 'Backend tidak tersedia');
+        LOADING_skipTask('wellLog', 'Backend tidak tersedia');
+        LOADING_skipTask('fault', 'Backend tidak tersedia');
+
+        result = {
+            horizonFailed: true,
+            wellFailed: true,
+            wellLogFailed: true,
+            faultFailed: true
+        };
+
+        UI_LOADING_setDataSource('Offline')
+    } else {
+        try {
+            result = await DATA_loadAll()
+            if (!result.dataSource){
+                throw new Error('Data source undefined!')
+            }
+            UI_LOADING_setDataSource(result.dataSource)
+        } catch (error) {
+            console.error('Data loading failed!!!')
+
+            result = {
+                horizonFailed: true,
+                wellFailed: true,
+                wellLogFailed: true,
+                faultFailed: true
+            };
+
+            UI_LOADING_setDataSource('Offline (Error)');
+        }
+    }
+
+    UI_initControls(
+        result,
+        apiAvailable,
+        inlinePlane,
+        crosslinePlane
+    )
+
+    SCENE_startRenderLoop();
+
+    console.log(
+        'Seismic Viewer Initialized'
+        + (
+            apiAvailable
+            ? ' successfully!'
+            : ' in offline mode'
+        )
+    )
+}
+
+const APP_cleanup = () => {
+    SCENE_stopRenderLoop()
+    FAULT_disposeAll()
+    WELL_disposeAll()
+}
+
+window.seismicApp = {
+    resetCamera: SCENE_resetCamera,
+    stopRenderLoop: SCENE_stopRenderLoop,
+    getWell: WELL_getByName,
+    getAvailableLogTypes: WELL_LOG_getAvailableTypes,
+    cleanupApp: APP_cleanup
+};
+
+window.addEventListener(
+    'beforeunload',
+    APP_cleanup
+)
+
+APP_init().catch((error) => {
+    console.error('Failed to start seismic viewer application!!!')
+})
