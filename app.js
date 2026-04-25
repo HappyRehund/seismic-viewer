@@ -2085,3 +2085,46 @@ const WELL_setOnLoaded = (callback) => {
     GLOBAL_WELL_ON_LOADED = callback;
 }
 
+const GLOBAL_API_BASE_URL = GLOBAL_CONFIG_PATH.apiBase
+
+const API_fetchJson = async (endpoint) => {
+    const url = `${GLOBAL_API_BASE_URL}/${endpoint}`
+    const response = await fetch(
+        url,
+        {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }
+    )
+
+    if (!response.ok) {
+        throw new Error(`Api fetch failed for ${url}`)
+    }
+
+    const json = await response.json();
+
+    if (json.success === false) {
+        throw new Error(json.error || `Api error for ${url}`)
+    }
+
+    return json.data !== undefined
+        ? json.data
+        : json;
+}
+
+const API_isAvailable = async () => {
+    try {
+        const baseRoot = GLOBAL_API_BASE_URL.replace(/\/api\/?$/, '')
+        const response = await fetch(`${baseRoot}/health`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(3000)
+        })
+
+        return response.ok;
+    } catch {
+        return false
+    }
+}
+
