@@ -1633,7 +1633,7 @@ const WELL_createLabel = (
 
 /**
  * @typedef {Object} WellApiData
- * @property {string} wel_name
+ * @property {string} well_name
  * @property {number} inline
  * @property {number} crossline
  * @property {number} top
@@ -1656,7 +1656,7 @@ const WELL_create = (
     wellData
 ) => {
 
-    const name = wellData.wel_name;
+    const name = wellData.well_name;
     const originalColor = GLOBAL_CONFIG_STYLE.defaultWellColor;
 
     /** @type {import('three').Mesh | null} */
@@ -1931,3 +1931,157 @@ const WELL_create = (
 
     return well;
 }
+
+/** @type {Well[]} */
+let GLOBAL_WELL_ITEMS = []
+
+/** @type {Map<string, Well>} */
+let GLOBAL_WELL_MAP = new Map()
+
+/** @type {((names: string[]) => void) | null} */
+let GLOBAL_WELL_ON_LOADED = null
+
+/**
+ * @typedef {Object} WellApiDataParam
+ * @property {WellApiData[]} wells
+ * @property {number} count
+ */
+/** @param {WellApiDataParam} apiData */
+const WELL_loadFromJson = (apiData) => {
+    console.log('Loading wells from API...')
+
+    try {
+        const {
+            wells: wellDataList
+        } = apiData
+
+        for (const wellData of wellDataList) {
+            if (
+                !wellData.well_name
+                || GLOBAL_WELL_MAP.has(wellData.well_name)
+            ) continue
+
+            const well = WELL_create(wellData)
+
+            GLOBAL_WELL_ITEMS.push(well)
+
+            GLOBAL_WELL_MAP.set(wellData.well_name)
+        }
+
+        console.log(
+            `Wells loaded: ${GLOBAL_WELL_ITEMS.length}`
+        )
+
+        if (GLOBAL_WELL_ON_LOADED) {
+            GLOBAL_WELL_ON_LOADED(WELL_get_names())
+        }
+    } catch (error) {
+        console.error('Failed to load wells:', error)
+    }
+}
+
+const WELL_getNames = () => {
+    GLOBAL_WELL_ITEMS.map(well => well.name)
+}
+
+const WELL_getByName = (name) => {
+    GLOBAL_WELL_MAP.get(name)
+}
+
+const WELL_setVisible = (
+    name,
+    visible
+) => {
+    const well = GLOBAL_WELL_MAP.get(name)
+    if (well) {
+        well.setVisible(visible)
+    }
+}
+
+const WELL_setAllVisible = (visible) => {
+    GLOBAL_WELL_ITEMS.forEach(well => well.setVisible(visible))
+}
+
+const WELL_attachLogData = () => {
+    let attachedCount = 0;
+
+    for (const well of GLOBAL_WELL_ITEMS) {
+        const logData = WELL_LOG_getData(well.name)
+
+        if (logData){
+            try {
+                well.setLogData(logData)
+                attachedCount++
+            } catch (err) {
+                console.error(
+                    `[WellLoader] failed to attach log data`
+                )
+            }
+        }
+    }
+    console.log(`Wells with log data: ${attachedCount}/${GLOBAL_WELL_ITEMS.length}`)
+}
+
+const WELL_setLogType = (
+    wellName,
+    logType
+) => {
+    const well = GLOBAL_WELL_MAP.get(wellName)
+    if (well) well.setLogType(logType)
+}
+
+const WELL_getAvailableLogs = (wellName) => {
+    const well = GLOBAL_WELL_MAP.get(wellName)
+    if (well) {
+        return well.getAvailableLogs()
+    } else {
+        return ['None']
+    }
+}
+
+const WELL_getCurrentLogType = (wellName) => {
+    const well = GLOBAL_WELL_MAP.get(wellName)
+    if (well) {
+        return well.getCurrentLogType()
+    } else {
+        return 'None'
+    }
+}
+
+const WELL_setAllLogType = (logType) => {
+    let changedCount = 0
+
+    for (const well of GLOBAL_WELL_ITEMS) {
+        if (well.logData) {
+            well.setLogType(logType)
+            changedCount++
+        }
+    }
+
+    return changedCount
+}
+
+const WELL_setAllLogType = (logType) => {
+    let changedCount = 0;
+
+    for (const well of GLOBAL_WELL_ITEMS) {
+        if (well.logData) {
+            well.setLogType(logType)
+            changedCount++
+        }
+    }
+
+    return changedCount
+}
+
+const WELL_disposeAll = () => {
+    GLOBAL_WELL_ITMES.forEach(w => w.dispose())
+    GLOBAL_WELL_ITEMS = []
+    GLOBAL_WELL_MAP.clear()
+}
+
+/** @param {(names: string[]) => void} */
+const WELL_setOnLoaded = (callback) => {
+    GLOBAL_WELL_ON_LOADED = callback;
+}
+
