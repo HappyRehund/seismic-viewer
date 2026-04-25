@@ -26,7 +26,7 @@ const GLOBAL_CONFIG_SEISMIC = {
 const GLOBAL_CONFIG_CAMERA = {
     fov: 45,
     near: 100,
-    far: 1000,
+    far: 10000,
 
     initialRadius: 6000,
     initialTheta: Math.PI / 4,
@@ -351,6 +351,11 @@ const HELPER_SCENE_setupCameraControls = () => {
         } else {
             GLOBAL_SCENE_ORBIT_STATE.isPanning = false
             GLOBAL_SCENE_ORBIT_STATE.isDragging = true
+        }
+
+        GLOBAL_SCENE_ORBIT_STATE.previousMouse = {
+            x: e.clientX,
+            y: e.clientY
         }
     })
 
@@ -1431,6 +1436,30 @@ const WELL_LOG_addTypeData = (
     }
 }
 
+/**
+ * @param {string} wellName
+ * @param {string} logType
+ * @param {WellLogEntry[]} entries
+ */
+const WELL_LOG_addSingleWellData = (
+    wellName,
+    logType,
+    entries
+) => {
+    if (!wellName) return
+
+    if (!GLOBAL_WELL_LOG_MAP.has(wellName)) {
+        GLOBAL_WELL_LOG_MAP.set(
+            wellName,
+            WELL_LOG_DATA_create(wellName)
+        )
+    }
+
+    GLOBAL_WELL_LOG_MAP
+        .get(wellName)
+        .setLogEntries(logType, entries)
+}
+
 const WELL_LOG_getData = (wellName) => {
     return GLOBAL_WELL_LOG_MAP.get(wellName)
 }
@@ -2441,33 +2470,49 @@ const DATA_loadAll = async () => {
                 'vsh'
             ]
 
-        /** @type {PromiseSettledResult<WellLogApiPayload>[]} */
-        const wellLogSettledResults = await Promise.allSettled(
-            LOG_TYPES.map((type) => {
-                return (
-                    API_fetchJson(`well-log/${type}`)
-                )
-            })
-        )
-
         let successCount = 0;
-        for (let i = 0; i < wellLogSettledResults.length; i++) {
-            if (wellLogSettledResults[i].status === 'fulfilled') {
+        const wellNames = WELL_getNames()
 
-                /** @type {PromiseFulfilledResult<WellLogApiPayload>} */
-                const fulfilledResult = wellLogSettledResults[i]
+        for (let i = 0; i < LOG_TYPES.length; i++) {
+            const logType = LOG_TYPES[i]
 
-                const data = fulfilledResult.value
+            /** @type {PromiseSettledResult<{wellName: string, data: WellLogApiPayload}>[]} */
+            const wellLogSettledResults = await Promise.allSettled(
+                wellNames.map((wellName) => {
+                    return API_fetchJson(
+                        `well-log/${logType}/${encodeURIComponent(wellName)}`
+                    ).then((data) => ({
+                        wellName,
+                        data
+                    }))
+                })
+            )
 
-                WELL_LOG_addTypeData(
-                    LOG_TYPES[i].toUpperCase(),
-                    data.wells
-                )
+            let typeSuccessCount = 0
+
+            for (const settledResult of wellLogSettledResults) {
+                if (settledResult.status === 'fulfilled') {
+                    const {
+                        wellName,
+                        data
+                    } = settledResult.value
+
+                    WELL_LOG_addSingleWellData(
+                        wellName,
+                        logType.toUpperCase(),
+                        data.entries || []
+                    )
+
+                    typeSuccessCount++
+                } else {
+                    console.warn(
+                        `Well log ${logType} failed for one well`
+                    )
+                }
+            }
+
+            if (typeSuccessCount > 0) {
                 successCount++
-            } else {
-                console.warn(
-                    `Well log ${LOG_TYPES[i]} failed to fetch`
-                )
             }
 
             LOADING_updateTask(
@@ -2657,7 +2702,7 @@ const UI_initWellTogglePanel = (
     GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT = document.getElementById('setAllLogTypeSelect')
 
     if (GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN) {
-        GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE 
+        GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
             ? 'Hide All'
             : 'Show All'
 
@@ -2676,7 +2721,7 @@ const UI_initWellTogglePanel = (
     }
 
     if (GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT) {
-        
+
         GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.addEventListener(
             'change',
             () => {
@@ -2741,7 +2786,7 @@ const UI_populateWellPanel = (wellNames) => {
             option.textContent = logType;
             logSelect.appendChild(option);
         });
-        
+
         logSelect.value = WELL_getCurrentLogType(name);
         logSelect.addEventListener(
             'change',
@@ -2785,11 +2830,11 @@ const UI_refreshWellLogSelectors = () => {
         });
 
         GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.innerHTML = '<option value="">Set All...</option>';
-        
+
         [...allLogTypes]
             .filter(log => log !== 'None')
             .sort()
-            forEach((logType) => {
+            .forEach((logType) => {
                 const option = document.createElement('option');
                 option.value = logType;
                 option.textContent = logType;
@@ -2826,23 +2871,23 @@ const HELPER_UI_disableSlider = (
 ) => {
     const slider = document.getElementById(sliderId)
     const label = document.getElementById(labelId);
-    
-    if (slider) { 
-        slider.disabled = true; 
-        slider.classList.add('slider-disabled'); 
+
+    if (slider) {
+        slider.disabled = true;
+        slider.classList.add('slider-disabled');
     }
-    if (label) { 
-        label.textContent = 'N/A'; 
-        label.style.color = '#999'; 
+    if (label) {
+        label.textContent = 'N/A';
+        label.style.color = '#999';
     }
     if (slider?.closest('.control-panel')) {
 
         /** @type {HTMLElement} */
-        const sliderClosestControlPanel = slider.closest('.control-panel') 
+        const sliderClosestControlPanel = slider.closest('.control-panel')
         sliderClosestControlPanel
             .classList
             .add('panel-disabled');
-    } 
+    }
 }
 
 const HELPER_UI_disableButton = (
@@ -2852,12 +2897,12 @@ const HELPER_UI_disableButton = (
 
     /** @type {HTMLButtonElement} */
     const btn = document.getElementById(btnId);
-    if (btn) { 
-        btn.textContent = text; 
-        btn.disabled = true; 
+    if (btn) {
+        btn.textContent = text;
+        btn.disabled = true;
         btn
             .classList
-            .add('btn-disabled'); 
+            .add('btn-disabled');
     }
 }
 
@@ -2877,10 +2922,10 @@ const HELPER_UI_disableButton = (
  */
 
 /**
- * @param {DataLoadResult} result 
- * @param {boolean} apiAvailable 
- * @param {SeismicPlane | null} inlinePlane 
- * @param {SeismicPlane | null} crosslinePlane 
+ * @param {DataLoadResult} result
+ * @param {boolean} apiAvailable
+ * @param {SeismicPlane | null} inlinePlane
+ * @param {SeismicPlane | null} crosslinePlane
  */
 const UI_initControls = (
     result,
@@ -2891,14 +2936,14 @@ const UI_initControls = (
 
     if (inlinePlane && crosslinePlane && apiAvailable) {
         UI_createSliderControl(
-            'inlineSlider', 
-            'label_inline', 
+            'inlineSlider',
+            'label_inline',
             GLOBAL_CONFIG_SEISMIC.getMaxInlineIndex(),
             (value) => inlinePlane.setIndex(value)
         );
         UI_createSliderControl(
-            'crosslineSlider', 
-            'label_crossline', 
+            'crosslineSlider',
+            'label_crossline',
             GLOBAL_CONFIG_SEISMIC.getMaxCrosslineIndex(),
             (value) => crosslinePlane.setIndex(value)
         );
@@ -2909,8 +2954,8 @@ const UI_initControls = (
 
     if (!result.horizonFailed) {
         UI_createToggleButton(
-            'toggleHorizonBtn', 
-            'Show Horizon', 
+            'toggleHorizonBtn',
+            'Show Horizon',
             'Hide Horizon',
             (visible) => HORIZON_setAllVisible(visible)
         );
@@ -2920,8 +2965,8 @@ const UI_initControls = (
 
     if (!result.faultFailed) {
         UI_createToggleButton(
-            'toggleFaultBtn', 
-            'Show Fault', 
+            'toggleFaultBtn',
+            'Show Fault',
             'Hide Fault',
             (visible) => FAULT_setAllVisible(visible)
         );
@@ -2931,7 +2976,7 @@ const UI_initControls = (
 
     if (!result.wellFailed) {
         UI_initWellTogglePanel(
-            'wellList', 
+            'wellList',
             'toggleAllWellsBtn'
         );
 
@@ -2951,20 +2996,20 @@ const UI_initControls = (
         const wellList = document.getElementById('wellList');
         const wellControl = document.getElementById('wellControl');
 
-        if (toggleBtn) { 
-            toggleBtn.disabled = true; 
-            toggleBtn.classList.add('btn-disabled'); 
-            toggleBtn.textContent = 'N/A'; 
+        if (toggleBtn) {
+            toggleBtn.disabled = true;
+            toggleBtn.classList.add('btn-disabled');
+            toggleBtn.textContent = 'N/A';
         }
-        if (setAllSelect) { 
-            setAllSelect.disabled = true; 
+        if (setAllSelect) {
+            setAllSelect.disabled = true;
             setAllSelect
                 .classList
-                .add('select-disabled'); 
+                .add('select-disabled');
         }
-        if (wellList) { 
-            wellList.innerHTML = 
-                '<div class="well-panel-offline">Well data not available</div>'; 
+        if (wellList) {
+            wellList.innerHTML =
+                '<div class="well-panel-offline">Well data not available</div>';
         }
         if (wellControl) {
             wellControl
@@ -2975,7 +3020,7 @@ const UI_initControls = (
 
     const resetBtn = document.getElementById('resetCameraBtn');
     if (resetBtn) resetBtn.addEventListener(
-        'click', 
+        'click',
         () => SCENE_resetCamera()
     );
 }
@@ -3003,11 +3048,11 @@ let GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE = null;
 
 const HELPER_UI_LOADING_getTaskClass = (status) => {
     /** @type {Record<string, string>} */
-    const statusToClassMap = { 
-        loading: 'active', 
-        success: 'complete', 
-        error: 'error', 
-        skipped: 'skipped' 
+    const statusToClassMap = {
+        loading: 'active',
+        success: 'complete',
+        error: 'error',
+        skipped: 'skipped'
     };
     return statusToClassMap[status] || '';
 };
@@ -3025,8 +3070,8 @@ const HELPER_UI_LOADING_getTaskIcon = (status) => {
 };
 
 /**
- * 
- * @param {LoadingTask[]} tasks 
+ *
+ * @param {LoadingTask[]} tasks
  */
 const HELPER_UI_LOADING_updateTasks = (tasks) => {
     if (!GLOBAL_UI_LOADING_TASKS_CONTAINER) return;
@@ -3034,7 +3079,7 @@ const HELPER_UI_LOADING_updateTasks = (tasks) => {
 
     for (const task of tasks) {
         const taskElement = document.createElement('div');
-        taskElement.className = 
+        taskElement.className =
             `loading-task ${HELPER_UI_LOADING_getTaskClass(task.status)}`;
 
         const iconElement = document.createElement('span');
@@ -3048,14 +3093,14 @@ const HELPER_UI_LOADING_updateTasks = (tasks) => {
         taskElement.appendChild(labelElement);
 
         if (
-            task.message 
+            task.message
             && (
-                task.status === 'error' 
+                task.status === 'error'
                 || task.status === 'skipped'
             )
         ) {
             const msgElement = document.createElement('span');
-            msgElement.style.cssText = 
+            msgElement.style.cssText =
                 'margin-left: auto; font-size: 11px; opacity: 0.7;';
 
             msgElement.textContent = task.message;
@@ -3071,7 +3116,7 @@ const UI_LOADING_HideScreen = () => {
         GLOBAL_UI_LOADING_SCREEN
             .classList
             .add('hidden');
-    } 
+    }
     if (GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR) {
         GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR
             .style
@@ -3084,7 +3129,7 @@ const UI_LOADING_ForceHideScreen = () => {
         GLOBAL_UI_LOADING_SCREEN
             .style
             .display = 'none';
-    } 
+    }
 };
 
 /** @param {boolean} hasErrors */
@@ -3099,12 +3144,12 @@ const HELPER_UI_LOADING_OnComplete = (hasErrors) => {
         GLOBAL_UI_LOADING_PROGRESS_FILL
             .style
             .width = '100%';
-    } 
+    }
 
     setTimeout(
-        () => UI_LOADING_HideScreen(), 
-        hasErrors 
-            ? 1500 
+        () => UI_LOADING_HideScreen(),
+        hasErrors
+            ? 1500
             : 800
     );
 };
@@ -3114,16 +3159,16 @@ const HELPER_UI_LOADING_onStateChange = (state) => {
     if (GLOBAL_UI_LOADING_PROGRESS_FILL) {
         GLOBAL_UI_LOADING_PROGRESS_FILL
             .style
-            .width = 
+            .width =
                 `${
                     Math.min(
-                        100, 
+                        100,
                         state.totalProgress
                     )
                 }%`;
     }
     if (GLOBAL_UI_LOADING_STATUS_TEXT) {
-        GLOBAL_UI_LOADING_STATUS_TEXT.textContent = 
+        GLOBAL_UI_LOADING_STATUS_TEXT.textContent =
             state.currentTask
                 ? `Loading ${state.currentTask}...`
                 : 'Processing...';
@@ -3132,7 +3177,7 @@ const HELPER_UI_LOADING_onStateChange = (state) => {
 
     if (state.isComplete) {
         HELPER_UI_LOADING_OnComplete(state.hasErrors);
-    } 
+    }
 }
 
 const UI_LOADING_setDataSource = (sourceName) => {
@@ -3147,17 +3192,17 @@ const UI_LOADING_setDataSource = (sourceName) => {
 
 const UI_LOADING_init = () => {
     GLOBAL_UI_LOADING_SCREEN = document.getElementById('loadingScreen');
-    
+
     GLOBAL_UI_LOADING_PROGRESS_FILL = document.getElementById('loadingProgressFill');
-    
+
     GLOBAL_UI_LOADING_STATUS_TEXT = document.getElementById('loadingStatus');
-    
+
     GLOBAL_UI_LOADING_TASKS_CONTAINER = document.getElementById('loadingTasks');
-    
+
     GLOBAL_UI_LOADING_DATA_SOURCE_NAME = document.getElementById('dataSourceName');
-    
+
     GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR = document.getElementById('dataSourceIndicator');
-    
+
     GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE = document.getElementById('currentDataSource');
 
     LOADING_addListener((state) => HELPER_UI_LOADING_onStateChange(state));
