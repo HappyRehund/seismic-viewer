@@ -2825,7 +2825,25 @@ const HELPER_UI_disableSlider = (
     sliderId,
     labelId
 ) => {
+    const slider = document.getElementById(sliderId)
+    const label = document.getElementById(labelId);
+    
+    if (slider) { 
+        slider.disabled = true; 
+        slider.classList.add('slider-disabled'); 
+    }
+    if (label) { 
+        label.textContent = 'N/A'; 
+        label.style.color = '#999'; 
+    }
+    if (slider?.closest('.control-panel')) {
 
+        /** @type {HTMLElement} */
+        const sliderClosestControlPanel = slider.closest('.control-panel') 
+        sliderClosestControlPanel
+            .classList
+            .add('panel-disabled');
+    } 
 }
 
 const HELPER_UI_disableButton = (
@@ -2833,6 +2851,15 @@ const HELPER_UI_disableButton = (
     text
 ) => {
 
+    /** @type {HTMLButtonElement} */
+    const btn = document.getElementById(btnId);
+    if (btn) { 
+        btn.textContent = text; 
+        btn.disabled = true; 
+        btn
+            .classList
+            .add('btn-disabled'); 
+    }
 }
 
 /**
