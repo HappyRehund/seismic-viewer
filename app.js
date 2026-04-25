@@ -1942,11 +1942,11 @@ let GLOBAL_WELL_MAP = new Map()
 let GLOBAL_WELL_ON_LOADED = null
 
 /**
- * @typedef {Object} WellApiDataParam
+ * @typedef {Object} WellApiPayload
  * @property {WellApiData[]} wells
  * @property {number} count
  */
-/** @param {WellApiDataParam} apiData */
+/** @param {WellApiPayload} apiData */
 const WELL_loadFromJson = (apiData) => {
     console.log('Loading wells from API...')
 
@@ -2339,4 +2339,227 @@ const HELPER_DATA_transformHorizon = (rawHorizons) => {
     }
 
     return horizons
+}
+
+
+/**
+ * @typedef {Object} HorizonApiPayload
+ * @property {RawHorizon[]} horizons
+ * @property {number} count
+ */
+
+/**
+ * @typedef {Object} WellLogApiPayload
+ * @property {WellLogApiItem[]} wells
+ * @property {number} count
+ */
+
+/**
+ * @typedef {Object} FaultApiPayload
+ * @property {FaultApiData[]} faults
+ */
+const DATA_loadAll = async () => {
+    let horizonFailed = false;
+    let wellFailed = false;
+    let wellLogFailed = false;
+    let faultFailed = false;
+
+    LOADING_registerTask('horizon', 'Horizons')
+    loading_register_task('well', 'Wells');
+    loading_register_task('wellLog', 'Well Logs');
+    loading_register_task('fault', 'Faults');
+
+    try {
+        LOADING_updateTask(
+            'horizon',
+            {
+                status: 'loading',
+                progress: 0
+            }
+        )
+
+        /** @type {HorizonApiPayload} */
+        const rawHorizonData = await API_fetchJson('horizon') //ENDPOINT/+horizon
+
+        const transformedHorizons =
+            HELPER_DATA_transformHorizon(rawHorizonData.horizons)
+
+        for (const horizon of transformedHorizons) {
+            HORIZON_addFromJson(horizon)
+        }
+
+        LOADING_completeTask(
+            'horizon',
+            true,
+            `Loaded ${rawHorizonData.count} points`
+        )
+    } catch (error) {
+        console.warn('Horizon loading failed!!!')
+
+        horizonFailed = true
+
+        LOADING_completeTask(
+            'horizon',
+            false,
+            'Failed to load horizon'
+        )
+    }
+
+    try {
+        LOADING_updateTask(
+            'well',
+            {
+                status: 'loading',
+                progress: 0
+            }
+        )
+
+        /** @type {WellApiPayload} */
+        const wellData = await api_fetch_json('well');
+
+        WELL_loadFromJson(wellData)
+        LOADING_completeTask(
+            'well',
+            true,
+            `Loaded ${wellData.count} wells`
+        )
+    } catch (error) {
+        console.warn('Well loading failed:', error)
+        wellFailed = true
+
+        LOADING_completeTask(
+            'well',
+            false,
+            'Failed to load well'
+        )
+    }
+
+    try {
+        LOADING_updateTask(
+            'wellLog',
+            {
+                status: 'loading',
+                progress: 0
+            }
+        )
+
+        const LOG_TYPES = [
+                'phie',
+                'swe',
+                'vsh'
+            ]
+
+        /** @type {PromiseSettledResult<WellLogApiPayload>[]} */
+        const wellLogSettledResults = await Promise.allSettled(
+            LOG_TYPES.map((type) => {
+                return (
+                    API_fetchJson(`well-log/${type}`)
+                )
+            })
+        )
+
+        let successCount = 0;
+        for (let i = 0; i < wellLogSettledResults.length; i++) {
+            if (wellLogSettledResults[i].status === 'fulfilled') {
+
+                /** @type {PromiseFulfilledResult<WellLogApiPayload>} */
+                const fulfilledResult = wellLogSettledResults[i]
+
+                const data = fulfilledResult.value
+
+                WELL_LOG_addTypeData(
+                    LOG_TYPES[i].toUpperCase(),
+                    data.wells
+                )
+                successCount++
+            } else {
+                console.warn(
+                    `Well log ${LOG_TYPES[i]} failed to fetch`
+                )
+            }
+
+            LOADING_updateTask(
+                'wellLog',
+                {
+                    status: 'loading',
+                    progress: Math.round(((i + 1) / LOG_TYPES.length) * 100)
+                }
+            )
+        }
+
+        WELL_attachLogData()
+
+        if (successCount > 0) {
+            LOADING_completeTask(
+                'wellLog',
+                true,
+                `Loaded ${successCount}/3 Log Types`
+            )
+        } else {
+            wellLogFailed = true;
+            LOADING_skipTask(
+                'wellLog',
+                'No Data'
+            )
+        }
+    } catch (error) {
+        console.warn('Well log loading failed!!!')
+        wellLogFailed = true;
+
+        LOADING_skipTask(
+            'wellLog',
+            'No Data'
+        )
+    }
+
+    try {
+        LOADING_updateTask(
+            'fault',
+            {
+                status: 'loading',
+                progress: 0
+            }
+        )
+
+        /** @type {FaultApiPayload} */
+        const faultData = await API_fetchJson('fault');
+
+        const totalFaults = faultData.faults.length
+
+        let loadedCount = 0;
+
+        for (const fault of faultData.faults) {
+            FAULT_loadSurfacesFromJson(fault)
+
+            loadedCount++
+            LOADING_updateTask(
+                'fault',
+                {
+                    status: 'loading',
+                    progress: Math.round((loadedCount / totalFaults) * 100)
+                }
+            )
+        }
+
+        LOADING_completeTask(
+            'fault',
+            true,
+            `Loaded ${totalFaults} faults`
+        )
+    } catch (error) {
+        console.warn('Fault loading failed', error)
+        faultFailed = true
+        LOADING_skipTask(
+            'fault',
+            'Something went wrong when fetching fault'
+        )
+    }
+
+    return {
+        horizonFailed,
+        wellFailed,
+        wellLogFailed,
+        faultFailed,
+        dataSource: 'API'
+    }
 }
