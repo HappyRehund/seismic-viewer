@@ -2619,3 +2619,37 @@ const UI_createToggleButton = (
     }
 }
 
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_WELL_PANEL_CONTAINER = null
+
+/** @type {HTMLButtonElement | null} */
+let GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN = null
+
+/** @type {HTMLSelectElement | null} */
+let GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT = null
+
+/** @type {Map<string, HTMLInputElement>} */
+let GLOBAL_UI_WELL_PANEL_CHECKBOXES = new Map()
+
+/** @type {Map<string, HTMLSelectElement>} */
+let GLOBAL_UI_WELL_PANEL_LOG_SELECTORS = new Map()
+
+let GLOBAL_UI_WELL_PANEL_ALL_VISIBLE = true
+
+const HELPER_UI_wellPanelUpdateToggleAllButton = () => {
+    if (!GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN) return
+
+    let allChecked = true
+
+    GLOBAL_UI_WELL_PANEL_CHECKBOXES
+        .forEach((callback) => {
+            if (callback.checked) {
+                allCheckedFalse
+            }
+        })
+
+    GLOBAL_UI_WELL_PANEL_ALL_VISIBLE = allChecked
+    GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = allChecked
+        ? 'Hide All'
+        : 'Show All'
+}
