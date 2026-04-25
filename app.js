@@ -2772,3 +2772,52 @@ const UI_populateWellPanel = (wellNames) => {
         GLOBAL_UI_WELL_PANEL_LOG_SELECTORS.set(name, logSelect);
     }
 }
+
+const UI_refreshWellLogSelectors = () => {
+    if (GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT) {
+        const allLogTypes = new Set<string>(['None']);
+
+        GLOBAL_WELL_ITEMS.forEach((well) => {
+            if (well.logData) {
+                well
+                    .getAvailableLogs()
+                    .forEach(log => allLogTypes.add(log));
+            }
+        });
+
+        GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.innerHTML = '<option value="">Set All...</option>';
+        
+        [...allLogTypes]
+            .filter(log => log !== 'None')
+            .sort().
+            forEach((logType) => {
+                const option = document.createElement('option');
+                option.value = logType;
+                option.textContent = logType;
+                GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.appendChild(option);
+            });
+
+        const noneOption = document.createElement('option');
+        noneOption.value = 'None';
+        noneOption.textContent = 'None';
+        GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.appendChild(noneOption);
+    }
+
+    GLOBAL_UI_WELL_PANEL_LOG_SELECTORS.forEach((select, name) => {
+        const currentValue = select.value;
+        select.innerHTML = '';
+
+        const availableLogs = WELL_getAvailableLogs(name);
+        availableLogs.forEach((logType) => {
+            const option = document.createElement('option');
+            option.value = logType;
+            option.textContent = logType;
+            select.appendChild(option);
+        });
+
+        if (availableLogs.includes(currentValue)) {
+            select.value = currentValue;
+        }
+    });
+}
+
