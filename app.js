@@ -2698,3 +2698,77 @@ const UI_initWellTogglePanel = (
         )
     }
 }
+
+/** @param {string[]} wellNames */
+const UI_populateWellPanel = (wellNames) => {
+
+    if (!GLOBAL_UI_WELL_PANEL_CONTAINER) return
+
+    GLOBAL_UI_WELL_PANEL_CONTAINER.innerHTML = ''
+    GLOBAL_UI_WELL_PANEL_CHECKBOXES.clear()
+    GLOBAL_UI_WELL_PANEL_LOG_SELECTORS.clear()
+
+    if (wellNames.length === 0) {
+        GLOBAL_UI_WELL_PANEL_CONTAINER.innerHTML = '<div style="color: #888; font-style: italic;">No wells found</div>';
+        return;
+    }
+
+    const sortedNames = [...wellNames].sort((a, b) => {
+        const matchA = a.match(/(\d+)/);
+        const matchB = b.match(/(\d+)/);
+
+        if (matchA && matchB) {
+            return parseInt(matchA[1]) - parseInt(matchB[1])
+        }
+
+        return a.localeCompare(b)
+    })
+
+    for (const name of sortedNames) {
+        const wellItem = document.createElement('div');
+        wellItem.className = 'well-item';
+
+        const labelElement = document.createElement('span');
+        labelElement.className = 'well-name';
+        labelElement.textContent = name;
+
+        const logSelect = document.createElement('select')
+        logSelect.className = 'well-log-select';
+
+        const availableLogs = WELL_getAvailableLogs(name);
+        availableLogs.forEach((logType) => {
+            const option = document.createElement('option');
+            option.value = logType;
+            option.textContent = logType;
+            logSelect.appendChild(option);
+        });
+        
+        logSelect.value = WELL_getCurrentLogType(name);
+        logSelect.addEventListener(
+            'change',
+            () => {
+                WELL_setLogType(name, logSelect.value)
+            }
+        )
+
+        const checkbox = document.createElement('input')
+        checkbox.type = 'checkbox';
+        checkbox.className = 'well-checkbox';
+        checkbox.checked = true;
+        checkbox.addEventListener(
+            'change',
+            () => {
+                WELL_setVisible(name, checkbox.checked)
+                HELPER_UI_wellPanelUpdateToggleAllButton()
+            }
+        )
+
+        wellItem.appendChild(labelElement);
+        wellItem.appendChild(logSelect);
+        wellItem.appendChild(checkbox);
+        GLOBAL_UI_WELL_PANEL_CONTAINER.appendChild(wellItem);
+
+        GLOBAL_UI_WELL_PANEL_CHECKBOXES.set(name, checkbox);
+        GLOBAL_UI_WELL_PANEL_LOG_SELECTORS.set(name, logSelect);
+    }
+}
