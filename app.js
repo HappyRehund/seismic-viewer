@@ -2981,3 +2981,88 @@ const UI_initControls = (
     );
 }
 
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_SCREEN = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_PROGRESS_FILL = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_STATUS_TEXT = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_TASKS_CONTAINER = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_DATA_SOURCE_NAME = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_DATA_SOURCE_INDICATOR = null;
+
+/** @type {HTMLElement | null} */
+let GLOBAL_UI_LOADING_CURRENT_DATA_SOURCE = null;
+
+const HELPER_UI_LOADING_getTaskClass = (status) => {
+    /** @type {Record<string, string>} */
+    const statusToClassMap = { 
+        loading: 'active', 
+        success: 'complete', 
+        error: 'error', 
+        skipped: 'skipped' 
+    };
+    return statusToClassMap[status] || '';
+};
+
+const HELPER_UI_LOADING_getTaskIcon = (status) => {
+    /** @type {Record<string, string>} */
+    const statusToClassMap = {
+        pending: '\u25CB',
+        loading: '<div class="task-spinner"></div>',
+        success: '\u2713',
+        error: '\u2717',
+        skipped: '\u2298'
+    };
+    return statusToClassMap[status] || '\u25CB';
+};
+
+/**
+ * 
+ * @param {LoadingTask[]} tasks 
+ */
+const HELPER_UI_LOADING_updateTasks = (tasks) => {
+    if (!GLOBAL_UI_LOADING_TASKS_CONTAINER) return;
+    GLOBAL_UI_LOADING_TASKS_CONTAINER.innerHTML = '';
+
+    for (const task of tasks) {
+        const taskElement = document.createElement('div');
+        taskElement.className = 
+            `loading-task ${HELPER_UI_LOADING_getTaskClass(task.status)}`;
+
+        const iconElement = document.createElement('span');
+        iconElement.className = 'task-icon';
+        iconElement.innerHTML = HELPER_UI_LOADING_getTaskIcon(task.status);
+
+        const labelElement = document.createElement('span');
+        labelElement.textContent = task.label;
+
+        taskElement.appendChild(iconElement);
+        taskElement.appendChild(labelElement);
+
+        if (
+            task.message 
+            && (
+                task.status === 'error' 
+                || task.status === 'skipped'
+            )
+        ) {
+            const msgElement = document.createElement('span');
+            msgElement.style.cssText = 
+                'margin-left: auto; font-size: 11px; opacity: 0.7;';
+                
+            msgElement.textContent = task.message;
+            taskElement.appendChild(msgElement);
+        }
+
+        GLOBAL_UI_LOADING_TASKS_CONTAINER.appendChild(taskElement);
+    }
+};
