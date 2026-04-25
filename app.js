@@ -79,6 +79,7 @@ const GLOBAL_CONFIG_WELL_LOG = {
             fill: {
                 enabled: true,
                 color: 0x00ff88,
+                opacity: 0.35,
                 direction: 'right'
             }
         },
@@ -90,6 +91,7 @@ const GLOBAL_CONFIG_WELL_LOG = {
             fill: {
                 enabled: true,
                 color: 0x8b4513,
+                opacity: 0.35,
                 direction: 'right'
             }
         },
@@ -101,6 +103,7 @@ const GLOBAL_CONFIG_WELL_LOG = {
             fill: {
                 enabled: true,
                 color: 0x4169e1,
+                opacity: 0.35,
                 direction: 'right'
             }
         }
@@ -1224,7 +1227,7 @@ const HELPER_WELL_LOG_createFillMesh = (
     const material = new THREE.MeshBasicMaterial({
         color: fill.color,
         transparent: true,
-        opacity: fill.opacity,
+        opacity: fill.opacity ?? 0.35,
         side: THREE.DoubleSide,
         depthWrite: false
     })
