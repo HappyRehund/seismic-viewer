@@ -2128,3 +2128,140 @@ const API_isAvailable = async () => {
     }
 }
 
+/**
+ * @typedef {Object} LoadingTask
+ * @property {string} id
+ * @property {string} label
+ * @property {'pending' | 'loading' | 'success' | 'error' | 'skipped'} status
+ * @property {number} progress
+ * @property {string} message
+ */
+
+/**
+ * @typedef {Object} LoadingState
+ * @property {LoadingTask[]} tasks
+ * @property {number} totalProgress
+ * @property {boolean} isComplete
+ * @property {boolean} hasErrors
+ * @property {string | null} currentTask
+ */
+
+/** @type {Map<string, LoadingTask>} */
+let GLOBAL_LOADING_TASKS = new Map()
+
+/** @type {((state: LoadingState) => void)[]} */
+let GLOBAL_LOADING_LISTENERS = [];
+
+let GLOBAL_LOADING_IS_COMPLETE = false;
+
+const HELPER_LOADING_notify = () => {
+    const state = LOADING_getState();
+    GLOBAL_LOADING_LISTENERS.forEach(callback => callback())
+}
+
+const HELPER_LOADING_checkAllComplete = () => {
+    const tasks = Array.from(GLOBAL_LOADING_TASKS.values())
+
+    GLOBAL_LOADING_IS_COMPLETE = tasks.every(
+        (task) => {
+            return (
+            task.status === 'success'
+            || task.status === 'error'
+            || task.status === 'skipped'
+            )
+        }
+    )
+
+    if (GLOBAL_LOADING_IS_COMPLETE) {
+        HELPER_LOADING_notify();
+    }
+}
+
+const LOADING_registerTask = (
+    taskId,
+    label
+) => {
+    GLOBAL_LOADING_TASKS.set(
+        taskId,
+        {
+            id: taskId,
+            label,
+            status: 'pending',
+            progress: 0,
+            message: ''
+        }
+    )
+
+    HELPER_LOADING_notify();
+}
+
+/**
+ * @param {string} taskId
+ * @param {Partial<LoadingTask>} state
+ */
+const  LOADING_updateTask = (
+    taskId,
+    state
+) => {
+    const task = GLOBAL_LOADING_TASKS.get(taskId)
+
+    if (task) {
+        Object.assign(task, state)
+        HELPER_LOADING_notify()
+    }
+}
+
+const LOADING_completeTask = (
+    taskId,
+    success = true,
+    message = ''
+) => {
+    LOADING_updateTask(
+        taskId,
+        {
+            status: success ? 'success' : 'error',
+            progress: 100,
+            message
+        }
+    )
+    HELPER_LOADING_checkAllComplete()
+}
+
+const LOADING_skipTask = (
+    taskId,
+    reason = '',
+) => {
+
+    LOADING_updateTask(
+        taskId,
+        {
+            status: 'skipped',
+            progress: 100,
+            message: reason
+        }
+    )
+
+    HELPER_LOADING_checkAllComplete();
+}
+
+/** @param {(state: LoadingState) => void} */
+const LOADING_addListener = (callback) => {
+    GLOBAL_LOADING_LISTENERS.push(callback)
+}
+
+const LOADING_getState = () => {
+    const tasks = Array.from(GLOBAL_LOADING_TASKS.values());
+
+    const totalProgress = tasks.reduce((sum, t) => sum + t.progress, 0)
+    const avgProgress = totalProgress / tasks.length
+
+    const progressToShow = tasks.length > 0 ? avgProgress : 0
+
+    return {
+        tasks,
+        progressToShow,
+        isComplete: GLOBAL_LOADING_IS_COMPLETE,
+        hasErrors: tasks.some(task => task.status === 'error'),
+        currentTask: tasks.find(task => task.status === 'loading')
+    }
+}
