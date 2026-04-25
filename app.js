@@ -2563,3 +2563,59 @@ const DATA_loadAll = async () => {
         dataSource: 'API'
     }
 }
+
+/**
+ * @param {(value: number) => void} onChange
+ */
+const UI_createSliderControl = (
+    sliderId,
+    labelId,
+    maxValue,
+    onChange
+) => {
+    const slider = document.getElementById(sliderId)
+    const label = document.getElementById(labelId)
+
+    if (slider) {
+        slider.max = String(maxValue)
+        slider.value = '0'
+
+        slider.addEventListener(
+            'input',
+            () => {
+                const value = parseInt(slider.value)
+                if (label) label.textContent = (value + 1).toString();
+                if (onChange) onChange(value)
+            }
+        )
+    }
+}
+
+/**
+ * @param {(isActive: boolean) => void}
+ */
+const UI_createToggleButton = (
+    buttonId,
+    showText,
+    hideText,
+    onToggle
+) => {
+    const button = document.getElementById(buttonId)
+    let isActive = true;
+
+    if (button) {
+        button.textContent = hideText
+
+        button.addEventListener('click', () => {
+            isActive = !isActive
+            button.textContent = isActive
+                ? hideText
+                : showText
+
+            if (onToggle) {
+                onToggle(isActive)
+            }
+        })
+    }
+}
+
