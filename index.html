@@ -1,17 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seismic Viewer</title>
-    <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-    <div id="loadingScreen">
 
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Seismic & Horizon Viewer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div class="loading-logo">🌍 Seismic Viewer</div>
+    <div class="loading-container">
+      <div class="loading-progress-bar">
+        <div id="loadingProgressFill" class="loading-progress-fill"></div>
+      </div>
+      <div id="loadingStatus" class="loading-status">Initializing...</div>
+      <div id="loadingTasks" class="loading-tasks">
+        <!-- Tasks will be dynamically added -->
+      </div>
+      <div id="loadingDataSource" class="loading-data-source">
+        Data Source: <span id="dataSourceName">Detecting...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Left Sidebar Controls -->
+  <div class="sidebar" id="controlSidebar">
+
+    <!-- Seismic Sliders -->
+    <div class="control-panel">
+      <label>
+        Inline:
+        <input type="range" id="inlineSlider" min="0" max="1091" value="0" />
+        <span id="label_inline" class="value-label">1</span>
+      </label>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="/app.js"></script>
+    <div class="control-panel">
+      <label>
+        Crossline:
+        <input type="range" id="crosslineSlider" min="0" max="548" value="0" />
+        <span id="label_crossline" class="value-label">1</span>
+      </label>
+    </div>
+
+    <!-- Visibility Toggles -->
+    <div class="control-panel">
+      <div class="btn-group">
+        <button id="toggleHorizonBtn" class="btn btn-small">Hide Horizon</button>
+        <button id="toggleFaultBtn" class="btn btn-small">Hide Fault</button>
+      </div>
+    </div>
+
+    <!-- Camera Controls -->
+    <div class="control-panel">
+      <button id="resetCameraBtn" class="btn" title="Reset camera to initial position">Reset Camera</button>
+      <div class="camera-info">
+        🖱️ Drag: Rotate<br>
+        ⇧+Drag: Pan<br>
+        Scroll: Zoom
+      </div>
+    </div>
+
+    <!-- Wells Panel -->
+    <div id="wellControl" class="control-panel collapsible expanded">
+      <div class="panel-header" onclick="this.parentElement.classList.toggle('expanded')">
+        <span class="panel-title">Wells</span>
+        <span class="panel-toggle">▼</span>
+      </div>
+      <div class="panel-content">
+        <div class="well-panel-header">
+          <select id="setAllLogTypeSelect" class="well-log-select" title="Set all wells to this log type">
+            <option value="">Set All...</option>
+          </select>
+          <button id="toggleAllWellsBtn" class="btn btn-small">Hide All</button>
+        </div>
+        <div id="wellList" class="well-list">
+          <div style="color: #888; font-style: italic; padding: 10px 0;">Loading wells...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Well Tooltip -->
+  <div id="wellTooltip"></div>
+
+  <!-- Data Source Indicator -->
+  <div id="dataSourceIndicator" style="display: none;">
+    Source: <span class="source-name" id="currentDataSource">CSV</span>
+  </div>
+
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Main Application (Transpiled output) -->
+  <script src="/app.js"></script>
+
 </body>
+
 </html>
