@@ -2821,3 +2821,136 @@ const UI_refreshWellLogSelectors = () => {
     });
 }
 
+const HELPER_UI_disableSlider = (
+    sliderId,
+    labelId
+) => {
+
+}
+
+const HELPER_UI_disableButton = (
+    btnId,
+    text
+) => {
+
+}
+
+/**
+ * @typedef {Object} DataLoadResult
+ * @property {boolean} horizonFailed
+ * @property {boolean} wellFailed
+ * @property {boolean} wellLogFailed
+ * @property {boolean} faultFailed
+ * @property {string | null} dataSource
+ */
+
+/**
+ * @typedef {Object} SeismicPlane
+ * @property {(index: number) => void} setIndex
+ * @property {() => void} dispose
+ */
+
+/**
+ * @param {DataLoadResult} result 
+ * @param {boolean} apiAvailable 
+ * @param {SeismicPlane | null} inlinePlane 
+ * @param {SeismicPlane | null} crosslinePlane 
+ */
+const UI_initControls = (
+    result,
+    apiAvailable,
+    inlinePlane,
+    crosslinePlane,
+) => {
+
+    if (inlinePlane && apiAvailable) {
+        UI_createSliderControl(
+            'inlineSlider', 
+            'label_inline', 
+            GLOBAL_CONFIG_SEISMIC.getMaxInlineIndex,
+            (value) => inlinePlane.setIndex(value)
+        );
+        UI_createSliderControl(
+            'crosslineSlider', 
+            'label_crossline', 
+            GLOBAL_CONFIG_SEISMIC.getMaxCrosslineIndex,
+            (value) => crosslinePlane.setIndex(value)
+        );
+    } else {
+        HELPER_UI_disableSlider('inlineSlider', 'label_inline');
+        HELPER_UI_disableSlider('crosslineSlider', 'label_crossline');
+    }
+
+    if (!result.horizonFailed) {
+        UI_createToggleButton(
+            'toggleHorizonBtn', 
+            'Show Horizon', 
+            'Hide Horizon',
+            (visible) => HORIZON_setAllVisible(visible)
+        );
+    } else {
+        HELPER_UI_disableButton('toggleHorizonBtn', 'Horizon N/A');
+    }
+
+    if (!result.faultFailed) {
+        UI_createToggleButton(
+            'toggleFaultBtn', 
+            'Show Fault', 
+            'Hide Fault',
+            (visible) => FAULT_setAllVisible(visible)
+        );
+    } else {
+        HELPER_UI_DISABLE_BUTTON('toggleFaultBtn', 'Fault N/A');
+    }
+
+    if (!result.wellFailed) {
+        UI_initWellTogglePanel(
+            'wellList', 
+            'toggleAllWellsBtn'
+        );
+
+        WELL_setOnLoaded((wellNames) => {
+            UI_populateWellPanel(wellNames);
+        });
+
+        const existingWells = WELL_getNames();
+        if (existingWells.length > 0) {
+            UI_populateWellPanel(existingWells);
+        }
+
+        UI_refreshWellLogSelectors();
+    } else {
+        const toggleBtn = document.getElementById('toggleAllWellsBtn')
+        const setAllSelect = document.getElementById('setAllLogTypeSelect')
+        const wellList = document.getElementById('wellList');
+        const wellControl = document.getElementById('wellControl');
+
+        if (toggleBtn) { 
+            toggleBtn.disabled = true; 
+            toggleBtn.classList.add('btn-disabled'); 
+            toggleBtn.textContent = 'N/A'; 
+        }
+        if (setAllSelect) { 
+            setAllSelect.disabled = true; 
+            setAllSelect
+                .classList
+                .add('select-disabled'); 
+        }
+        if (wellList) { 
+            wellList.innerHTML = 
+                '<div class="well-panel-offline">Well data not available</div>'; 
+        }
+        if (wellControl) {
+            wellControl
+                .classList
+                .add('panel-disabled');
+        }
+    }
+
+    const resetBtn = document.getElementById('resetCameraBtn');
+    if (resetBtn) resetBtn.addEventListener(
+        'click', 
+        () => SCENE_resetCamera()
+    );
+}
+
