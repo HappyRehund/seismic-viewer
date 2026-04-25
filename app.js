@@ -2653,3 +2653,48 @@ const HELPER_UI_wellPanelUpdateToggleAllButton = () => {
         ? 'Hide All'
         : 'Show All'
 }
+
+const UI_initWellTogglePanel = (
+    containerId,
+    toggleAllBtnId
+) => {
+    GLOBAL_UI_WELL_PANEL_CONTAINER = document.getElementById(containerId)
+
+    GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN = document.getElementById(toggleAllBtnId)
+
+    GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT = document.getElementById('setAllLogTypeSelect')
+
+    if (GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN) {
+        
+        GLOBAL_UI_WELL_PANEL_ALL_VISIBLE = !GLOBAL_UI_WELL_PANEL_ALL_VISIBLE
+
+        GLOBAL_UI_WELL_PANEL_TOGGLE_ALL_BTN.textContent = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE 
+            ? 'Hide All'
+            : 'Show All'
+
+        WELL_setAllVisible(GLOBAL_UI_WELL_PANEL_ALL_VISIBLE)
+        GLOBAL_UI_WELL_PANEL_CHECKBOXES.forEach(callback => callback.checked = GLOBAL_UI_WELL_PANEL_ALL_VISIBLE)
+    }
+
+    if (GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT) {
+        
+        GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.addEventListener(
+            'change',
+            () => {
+                const selectedLogType = GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.value
+
+                if (selectedLogType) {
+                    WELL_setAllLogType(selectedLogType)
+
+                    GLOBAL_UI_WELL_PANEL_LOG_SELECTORS.forEach((select) => {
+                        if ([...select.options].some(option => option.value === selectedLogType)){
+                            select.value = selectedLogType
+                        }
+                    })
+
+                    GLOBAL_UI_WELL_PANEL_SET_ALL_SELECT.value = ''
+                }
+            }
+        )
+    }
+}
