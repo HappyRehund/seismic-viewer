@@ -2087,6 +2087,7 @@ const WELL_setOnLoaded = (callback) => {
 
 const GLOBAL_API_BASE_URL = GLOBAL_CONFIG_PATH.apiBase
 
+/** @param {string} endpoint */
 const API_fetchJson = async (endpoint) => {
     const url = `${GLOBAL_API_BASE_URL}/${endpoint}`
     const response = await fetch(
@@ -2264,4 +2265,78 @@ const LOADING_getState = () => {
         hasErrors: tasks.some(task => task.status === 'error'),
         currentTask: tasks.find(task => task.status === 'loading')
     }
+}
+
+/**
+ * @typedef {Object} RawHorizon
+ * @property {number} Inline
+ * @property {number} Crossline
+ * @property {number | null} top
+ * @property {number | null} bottom
+ */
+
+/**@param {RawHorizon[]} rawHorizons*/
+const HELPER_DATA_transformHorizon = (rawHorizons) => {
+
+    /** @type {HorizonPoint[]} */
+    const topPoints = [];
+
+    /** @type {HorizonPoint[]} */
+    const bottomPoints = [];
+
+    let topMin = Infinity
+    let topMax = -Infinity
+
+    let bottomMin = Infinity
+    let bottomMax = -Infinity
+
+    for (const horizon of rawHorizons) {
+        if (
+            horizon.top != null
+            && horizon.top !== 0
+        ) {
+            topPoints.push({
+                inline: horizon.Inline,
+                crossline: horizon.Crossline,
+                z: horizon.top
+            })
+
+            topMin = Math.min(topMin, horizon.top)
+            topMax = Math.max(topMax, horizon.top)
+        }
+
+        if (
+            horizon.bottom != null
+            && horizon.bottom !== 0
+        ) {
+            bottomPoints.push({
+                inline: horizon.Inline,
+                crossline: horizon.Crossline,
+                z: horizon.bottom
+            })
+        }
+    }
+
+    /** @type {HorizonData[]} */
+    const horizons = [];
+
+    if (topPoints.length > 0) {
+        horizons.push({
+            name: 'Top',
+            points: topPoints,
+            z_min: topMin,
+            z_max: topMax
+        })
+    }
+
+    if (bottomPoints.length > 0) {
+        horizons.push({
+            name: 'Bottom',
+            points: bottomPoints,
+            z_min: bottomMin,
+            z_max: bottomMax
+        })
+    }
+
+    return horizons
 }
