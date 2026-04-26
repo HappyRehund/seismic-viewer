@@ -169,7 +169,7 @@ const HELPER_COORD_crosslineToZ = (crosslineIndex) => {
 }
 
 const HELPER_COORD_indexToPosition = (index, maxCount) => {
-    const normalized = index / maxCount - 1
+    const normalized = index / (maxCount - 1)
     return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
 }
 
