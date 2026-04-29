@@ -1,5 +1,5 @@
 const GLOBAL_CONFIG_SEISMIC = {
-    inlineCount: 1092,
+    inlineCount: 1092, // -> this should be dynamic
     crosslineCount: 549,
     timeSize: 1400,
     imageWidth: 2790,
@@ -55,11 +55,11 @@ const GLOBAL_CONFIG_PATH = {
     apiBase: 'http://127.0.0.1:5000/api',
 
     getInlinePath(index) {
-        return `${this.apiBase}/inline/${index + 1}/image`
+        return `${this.apiBase}/inlineMJB/${index + 1}/image`
     },
 
     getCrosslinePath(index) {
-        return `${this.apiBase}/crossline/${index + 1}/image`
+        return `${this.apiBase}/crosslineMJB/${index + 1}/image`
     }
 }
 
