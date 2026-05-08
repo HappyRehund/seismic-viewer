@@ -113,6 +113,24 @@ const GLOBAL_CONFIG_WELL_LOG = {
     curveSegments: 12
 }
 
+const GLOBAL_CONFIG_AXIS_HELPER = {
+    enabled: true,
+    axisColors: {
+        x: 0xff4444,
+        y: 0x44ff44,
+        z: 0x4488ff
+    },
+    tickLength: 50,
+    labelHeight: 12,
+    labelFontSize: 36,
+    labelPadding: 12,
+    worldTickInterval: 500,
+    twtTicks: [0, 200, 400, 600, 800, 1000, 1200, 1400],
+    gridColor: 0x444444,
+    gridOpacity: 0.3,
+    gridDivisions: 14
+}
+
 /** @type {import("three").Scene | null} */
 let GLOBAL_SCENE_INSTANCE = null
 
@@ -156,6 +174,9 @@ let GLOBAL_SCENE_HOVERED_WELL = null
 let GLOBAL_SCENE_LAST_RAYCAST_TIME = 0
 
 const GLOBAL_SCENE_RAYCAST_THROTTLE = 50
+
+/** @type {import("three").Group | null} */
+let GLOBAL_AXIS_HELPER_GROUP = null
 
 // [SAME A]
 const HELPER_COORD_inlineToX = (inlineIndex) => {
@@ -583,6 +604,234 @@ const SCENE_stopRenderLoop = () => {
     if (GLOBAL_SCENE_ANIM_FRAME_ID !== null) {
         cancelAnimationFrame(GLOBAL_SCENE_ANIM_FRAME_ID)
         GLOBAL_SCENE_ANIM_FRAME_ID = null
+    }
+}
+
+const HELPER_AXIS_createLabel = (text, position, textColor) => {
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+
+    if (!context) return null
+
+    const fontSize = GLOBAL_CONFIG_AXIS_HELPER.labelFontSize
+    const padding = GLOBAL_CONFIG_AXIS_HELPER.labelPadding
+
+    context.font = `bold ${fontSize}px Arial, sans-serif`
+    const metrics = context.measureText(text)
+
+    canvas.width = metrics.width + padding * 2
+    canvas.height = fontSize + padding * 2
+
+    context.fillStyle = 'rgba(0, 0, 0, 0.75)'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+
+    context.font = `bold ${fontSize}px Arial, sans-serif`
+    context.fillStyle = textColor
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillText(text, canvas.width / 2, canvas.height / 2)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.needsUpdate = true
+
+    const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false
+        })
+    )
+
+    const labelH = GLOBAL_CONFIG_AXIS_HELPER.labelHeight
+    const aspect = canvas.width / canvas.height
+
+    sprite.scale.set(labelH * aspect, labelH, 1)
+    sprite.position.copy(position)
+    sprite.renderOrder = 999
+
+    return sprite
+}
+
+const HELPER_AXIS_createAxisLine = (start, end, color) => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([start.x, start.y, start.z, end.x, end.y, end.z], 3)
+    )
+
+    const material = new THREE.LineBasicMaterial({ color })
+    return new THREE.Line(geometry, material)
+}
+
+const HELPER_AXIS_createTickMark = (position, axisDirection, tickLength, color) => {
+    const halfLen = tickLength / 2
+
+    let p1, p2
+
+    if (axisDirection === 'x') {
+        p1 = new THREE.Vector3(position.x, position.y - halfLen, position.z)
+        p2 = new THREE.Vector3(position.x, position.y + halfLen, position.z)
+    } else if (axisDirection === 'y') {
+        p1 = new THREE.Vector3(position.x - halfLen, position.y, position.z)
+        p2 = new THREE.Vector3(position.x + halfLen, position.y, position.z)
+    } else {
+        p1 = new THREE.Vector3(position.x, position.y - halfLen, position.z)
+        p2 = new THREE.Vector3(position.x, position.y + halfLen, position.z)
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute([p1.x, p1.y, p1.z, p2.x, p2.y, p2.z], 3)
+    )
+
+    const material = new THREE.LineBasicMaterial({ color })
+    return new THREE.Line(geometry, material)
+}
+
+const HELPER_AXIS_createGrid = (yPosition) => {
+    const { imageWidth, imageHeight } = GLOBAL_CONFIG_SEISMIC
+    const { gridColor, gridOpacity, gridDivisions } = GLOBAL_CONFIG_AXIS_HELPER
+
+    const step = imageWidth / gridDivisions
+    const positions = []
+    const halfStep = step / 2
+
+    for (let i = 0; i <= gridDivisions; i++) {
+        const coord = i * step
+
+        positions.push(0, yPosition, coord, imageWidth, yPosition, coord)
+        positions.push(coord, yPosition, 0, coord, yPosition, imageWidth)
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(positions, 3)
+    )
+
+    const material = new THREE.LineBasicMaterial({
+        color: gridColor,
+        transparent: true,
+        opacity: gridOpacity
+    })
+
+    return new THREE.LineSegments(geometry, material)
+}
+
+const AXIS_HELPER_create = () => {
+    if (!GLOBAL_SCENE_INSTANCE) return null
+
+    const group = new THREE.Group()
+    group.name = 'AxisHelper'
+
+    const { imageWidth, imageHeight, inlineOffset, croslineOffset } = GLOBAL_CONFIG_SEISMIC
+    const { axisColors, tickLength, twtTicks } = GLOBAL_CONFIG_AXIS_HELPER
+
+    const xColor = axisColors.x
+    const yColor = axisColors.y
+    const zColor = axisColors.z
+
+    group.add(HELPER_AXIS_createAxisLine(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(imageWidth, 0, 0),
+        xColor
+    ))
+
+    group.add(HELPER_AXIS_createAxisLine(
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, imageWidth),
+        zColor
+    ))
+
+    const yMin = HELPER_COORD_timeToY(Math.max(...twtTicks))
+    const yMax = HELPER_COORD_timeToY(Math.min(...twtTicks))
+
+    group.add(HELPER_AXIS_createAxisLine(
+        new THREE.Vector3(0, yMin, 0),
+        new THREE.Vector3(0, yMax, 0),
+        yColor
+    ))
+
+    const worldTicks = []
+    for (let w = 0; w <= imageWidth; w += GLOBAL_CONFIG_AXIS_HELPER.worldTickInterval) {
+        worldTicks.push(w)
+    }
+
+    for (const wx of worldTicks) {
+        const inlineIdx = (wx / imageWidth) * (GLOBAL_CONFIG_SEISMIC.inlineCount - 1)
+        const realInline = Math.round(inlineIdx + inlineOffset)
+
+        const pos = new THREE.Vector3(wx, 0, 0)
+        group.add(HELPER_AXIS_createTickMark(pos, 'x', tickLength, xColor))
+
+        const labelText = `${Math.round(wx)} / IL ${realInline}`
+        const label = HELPER_AXIS_createLabel(labelText, new THREE.Vector3(wx, -tickLength * 1.5, 0), '#ff6666')
+        if (label) group.add(label)
+    }
+
+    for (const wx of worldTicks) {
+        const crosslineIdx = (wx / imageWidth) * (GLOBAL_CONFIG_SEISMIC.crosslineCount - 1)
+        const realCrossline = Math.round(crosslineIdx + croslineOffset)
+
+        const pos = new THREE.Vector3(0, 0, wx)
+        group.add(HELPER_AXIS_createTickMark(pos, 'z', tickLength, zColor))
+
+        const labelText = `${Math.round(wx)} / XL ${realCrossline}`
+        const label = HELPER_AXIS_createLabel(labelText, new THREE.Vector3(-tickLength * 2, 0, wx), '#6688ff')
+        if (label) group.add(label)
+    }
+
+    for (const twt of twtTicks) {
+        const y = HELPER_COORD_timeToY(twt)
+
+        const pos = new THREE.Vector3(0, y, 0)
+        group.add(HELPER_AXIS_createTickMark(pos, 'y', tickLength, yColor))
+
+        const labelText = `TWT ${twt}`
+        const label = HELPER_AXIS_createLabel(labelText, new THREE.Vector3(-tickLength * 2.5, y, 0), '#66ff66')
+        if (label) group.add(label)
+    }
+
+    const gridY = HELPER_COORD_timeToY(Math.max(...twtTicks))
+    group.add(HELPER_AXIS_createGrid(gridY))
+
+    GLOBAL_SCENE_INSTANCE.add(group)
+    GLOBAL_AXIS_HELPER_GROUP = group
+
+    console.log('[AxisHelper] Created axis guides')
+
+    return group
+}
+
+const AXIS_HELPER_setVisible = (visible) => {
+    if (GLOBAL_AXIS_HELPER_GROUP) {
+        GLOBAL_AXIS_HELPER_GROUP.visible = visible
+    }
+}
+
+const AXIS_HELPER_dispose = () => {
+    if (!GLOBAL_AXIS_HELPER_GROUP || !GLOBAL_SCENE_INSTANCE) return
+
+    GLOBAL_AXIS_HELPER_GROUP.traverse((obj) => {
+        if (obj instanceof THREE.Line || obj instanceof THREE.LineSegments) {
+            obj.geometry.dispose()
+            obj.material.dispose()
+        } else if (obj instanceof THREE.Sprite) {
+            const mat = obj.material
+            if (mat.map) mat.map.dispose()
+            mat.dispose()
+        }
+    })
+
+    GLOBAL_SCENE_INSTANCE.remove(GLOBAL_AXIS_HELPER_GROUP)
+    GLOBAL_AXIS_HELPER_GROUP = null
+}
+
+const AXIS_HELPER_toggle = () => {
+    if (GLOBAL_AXIS_HELPER_GROUP) {
+        AXIS_HELPER_setVisible(!GLOBAL_AXIS_HELPER_GROUP.visible)
     }
 }
 
@@ -2977,6 +3226,13 @@ const UI_initControls = (
         HELPER_UI_disableButton('toggleFaultBtn', 'Fault N/A');
     }
 
+    UI_createToggleButton(
+        'toggleAxisBtn',
+        'Show Axes',
+        'Hide Axes',
+        (visible) => AXIS_HELPER_setVisible(visible)
+    );
+
     if (!result.wellFailed) {
         UI_initWellTogglePanel(
             'wellList',
@@ -3223,6 +3479,8 @@ const APP_init = async () => {
         UI_LOADING_ForceHideScreen()
         return
     }
+
+    AXIS_HELPER_create()
 
     const apiAvailable = await API_isAvailable();
 
