@@ -1,25 +1,36 @@
 const GLOBAL_CONFIG_SEISMIC = {
-    inlineCount: 1092, // -> this should be dynamic
+    // X-axis (inline) — populated by /api/seismic/ranges
+    inlineMin: 0,
+    inlineMax: 1091,
+    inlineCount: 1092,
+    inlineRange: 1091,
+
+    // Z-axis (crossline) — populated by /api/seismic/ranges
+    crosslineMin: 0,
+    crosslineMax: 548,
     crosslineCount: 549,
+    crosslineRange: 548,
+
+    // Y-axis (TWT) — populated by /api/well-log/{type}/stats
     timeSize: 1400,
-    imageWidth: 2790,
+
+    // Vertical plane geometry height — populated by /api/image-helper/.../dimensions
     imageHeight: 2800,
-    depthStep: 1100,
-    yTop: 200,
-    yBottom: 1600,
+
+    // Legacy / horizon offsets — populated dynamically from horizon data
     inlineOffset: 10000,
     croslineOffset: 996,
 
-    getVerticalOffset(){
-        return this.timeSize + 200;
+    getVerticalOffset() {
+        return this.timeSize;
     },
 
     getMaxInlineIndex() {
-        return this.inlineCount - 1;
+        return this.inlineMax;
     },
 
     getMaxCrosslineIndex() {
-        return this.crosslineCount - 1
+        return this.crosslineMax;
     }
 }
 
@@ -54,12 +65,12 @@ const GLOBAL_CONFIG_STYLE = {
 const GLOBAL_CONFIG_PATH = {
     apiBase: 'http://127.0.0.1:5000/api',
 
-    getInlinePath(index) {
-        return `${this.apiBase}/inlineMJB/${index + 1}/image`
+    getInlinePath(number) {
+        return `${this.apiBase}/inline/${number}/image`
     },
 
-    getCrosslinePath(index) {
-        return `${this.apiBase}/crosslineMJB/${index + 1}/image`
+    getCrosslinePath(number) {
+        return `${this.apiBase}/crossline/${number}/image`
     }
 }
 
@@ -179,30 +190,25 @@ const GLOBAL_SCENE_RAYCAST_THROTTLE = 50
 let GLOBAL_AXIS_HELPER_GROUP = null
 
 // [SAME A]
-const HELPER_COORD_inlineToX = (inlineIndex) => {
-    const normalized = inlineIndex / (GLOBAL_CONFIG_SEISMIC.inlineCount - 1)
-    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+const HELPER_COORD_inlineToX = (inline) => {
+    return inline - GLOBAL_CONFIG_SEISMIC.inlineMin
 }
 
-const HELPER_COORD_crosslineToZ = (crosslineIndex) => {
-    const normalized = crosslineIndex / (GLOBAL_CONFIG_SEISMIC.crosslineCount - 1)
-    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+const HELPER_COORD_crosslineToZ = (crossline) => {
+    return crossline - GLOBAL_CONFIG_SEISMIC.crosslineMin
 }
 
-const HELPER_COORD_indexToPosition = (index, maxCount) => {
-    const normalized = index / (maxCount - 1)
-    return normalized * GLOBAL_CONFIG_SEISMIC.imageWidth
+const HELPER_COORD_indexToPosition = (number, min) => {
+    return number - min
 }
 
 const HELPER_COORD_realInlineToX = (realInline) => {
     const inlineIndex = realInline - GLOBAL_CONFIG_SEISMIC.inlineOffset
-
     return HELPER_COORD_inlineToX(inlineIndex)
 }
 
 const HELPER_COORD_realCrosslineToZ = (realCrossline) => {
     const crosslineIndex = realCrossline - GLOBAL_CONFIG_SEISMIC.croslineOffset
-
     return HELPER_COORD_crosslineToZ(crosslineIndex)
 }
 
@@ -215,7 +221,6 @@ const HELPER_COORD_normalizeTwt = (twt) => {
 }
 
 const HELPER_COORD_seismicToWorld = (point) => {
-
     const x = HELPER_COORD_inlineToX(point.inline ?? point.inline_n)
     const y = HELPER_COORD_timeToY(point.time ?? point.z)
     const z = HELPER_COORD_crosslineToZ(point.crossline ?? point.crossline_n)
@@ -229,9 +234,9 @@ const HELPER_COORD_seismicToWorld = (point) => {
 
 const HELPER_COORD_getBoundingBoxCenter = () => {
     return {
-        x: GLOBAL_CONFIG_SEISMIC.imageWidth / 2,
-        y: GLOBAL_CONFIG_SEISMIC.imageHeight / 2,
-        z: GLOBAL_CONFIG_SEISMIC.imageWidth / 2
+        x: GLOBAL_CONFIG_SEISMIC.inlineRange / 2,
+        y: GLOBAL_CONFIG_SEISMIC.timeSize / 2,
+        z: GLOBAL_CONFIG_SEISMIC.crosslineRange / 2
     }
 }
 
@@ -249,12 +254,12 @@ const HELPER_SCENE_creteBoundingBox = () => {
         throw new Error("Instance dari scene (global) belum diinisialisasi")
     }
 
-    const { imageWidth, imageHeight } = GLOBAL_CONFIG_SEISMIC
+    const { inlineRange, crosslineRange, timeSize } = GLOBAL_CONFIG_SEISMIC
 
     const boxGeo = new THREE.BoxGeometry(
-        imageWidth, // width
-        imageHeight, // height
-        imageWidth // depth -> why image width (Rehund asking), why not time??
+        inlineRange,    // width  (X)
+        timeSize,       // height (Y) — full TWT range
+        crosslineRange  // depth  (Z)
     )
 
     const edges = new THREE.EdgesGeometry(boxGeo)
@@ -267,9 +272,9 @@ const HELPER_SCENE_creteBoundingBox = () => {
 
     const wireframe = new THREE.LineSegments(edges, material)
     wireframe.position.set(
-        imageWidth / 2, //x
-        0, //y
-        imageWidth / 2 //z
+        inlineRange / 2,
+        timeSize / 2,
+        crosslineRange / 2
     )
 
     GLOBAL_SCENE_INSTANCE.add(wireframe)
@@ -691,18 +696,19 @@ const HELPER_AXIS_createTickMark = (position, axisDirection, tickLength, color) 
 }
 
 const HELPER_AXIS_createGrid = (yPosition) => {
-    const { imageWidth, imageHeight } = GLOBAL_CONFIG_SEISMIC
+    const { inlineRange, crosslineRange } = GLOBAL_CONFIG_SEISMIC
     const { gridColor, gridOpacity, gridDivisions } = GLOBAL_CONFIG_AXIS_HELPER
 
-    const step = imageWidth / gridDivisions
+    const stepX = inlineRange / gridDivisions
+    const stepZ = crosslineRange / gridDivisions
     const positions = []
-    const halfStep = step / 2
 
     for (let i = 0; i <= gridDivisions; i++) {
-        const coord = i * step
+        const x = i * stepX
+        const z = i * stepZ
 
-        positions.push(0, yPosition, coord, imageWidth, yPosition, coord)
-        positions.push(coord, yPosition, 0, coord, yPosition, imageWidth)
+        positions.push(0, yPosition, z, inlineRange, yPosition, z)
+        positions.push(x, yPosition, 0, x, yPosition, crosslineRange)
     }
 
     const geometry = new THREE.BufferGeometry()
@@ -726,8 +732,15 @@ const AXIS_HELPER_create = () => {
     const group = new THREE.Group()
     group.name = 'AxisHelper'
 
-    const { imageWidth, imageHeight, inlineOffset, croslineOffset } = GLOBAL_CONFIG_SEISMIC
-    const { axisColors, tickLength, twtTicks } = GLOBAL_CONFIG_AXIS_HELPER
+    const {
+        inlineRange,
+        crosslineRange,
+        inlineMin,
+        crosslineMin,
+        timeSize
+    } = GLOBAL_CONFIG_SEISMIC
+
+    const { axisColors, tickLength } = GLOBAL_CONFIG_AXIS_HELPER
 
     const xColor = axisColors.x
     const yColor = axisColors.y
@@ -735,18 +748,18 @@ const AXIS_HELPER_create = () => {
 
     group.add(HELPER_AXIS_createAxisLine(
         new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(imageWidth, 0, 0),
+        new THREE.Vector3(inlineRange, 0, 0),
         xColor
     ))
 
     group.add(HELPER_AXIS_createAxisLine(
         new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0, imageWidth),
+        new THREE.Vector3(0, 0, crosslineRange),
         zColor
     ))
 
-    const yMin = HELPER_COORD_timeToY(Math.max(...twtTicks))
-    const yMax = HELPER_COORD_timeToY(Math.min(...twtTicks))
+    const yMin = 0
+    const yMax = timeSize
 
     group.add(HELPER_AXIS_createAxisLine(
         new THREE.Vector3(0, yMin, 0),
@@ -754,14 +767,11 @@ const AXIS_HELPER_create = () => {
         yColor
     ))
 
-    const worldTicks = []
-    for (let w = 0; w <= imageWidth; w += GLOBAL_CONFIG_AXIS_HELPER.worldTickInterval) {
-        worldTicks.push(w)
-    }
+    const worldTickIntervalX = Math.max(1, Math.round(inlineRange / 10))
+    const worldTickIntervalZ = Math.max(1, Math.round(crosslineRange / 10))
 
-    for (const wx of worldTicks) {
-        const inlineIdx = (wx / imageWidth) * (GLOBAL_CONFIG_SEISMIC.inlineCount - 1)
-        const realInline = Math.round(inlineIdx + inlineOffset)
+    for (let wx = 0; wx <= inlineRange; wx += worldTickIntervalX) {
+        const realInline = Math.round(wx + inlineMin)
 
         const pos = new THREE.Vector3(wx, 0, 0)
         group.add(HELPER_AXIS_createTickMark(pos, 'x', tickLength, xColor))
@@ -771,19 +781,19 @@ const AXIS_HELPER_create = () => {
         if (label) group.add(label)
     }
 
-    for (const wx of worldTicks) {
-        const crosslineIdx = (wx / imageWidth) * (GLOBAL_CONFIG_SEISMIC.crosslineCount - 1)
-        const realCrossline = Math.round(crosslineIdx + croslineOffset)
+    for (let wz = 0; wz <= crosslineRange; wz += worldTickIntervalZ) {
+        const realCrossline = Math.round(wz + crosslineMin)
 
-        const pos = new THREE.Vector3(0, 0, wx)
+        const pos = new THREE.Vector3(0, 0, wz)
         group.add(HELPER_AXIS_createTickMark(pos, 'z', tickLength, zColor))
 
-        const labelText = `${Math.round(wx)} / XL ${realCrossline}`
-        const label = HELPER_AXIS_createLabel(labelText, new THREE.Vector3(-tickLength * 2, 0, wx), '#6688ff')
+        const labelText = `${Math.round(wz)} / XL ${realCrossline}`
+        const label = HELPER_AXIS_createLabel(labelText, new THREE.Vector3(-tickLength * 2, 0, wz), '#6688ff')
         if (label) group.add(label)
     }
 
-    for (const twt of twtTicks) {
+    const twtStep = Math.max(1, Math.round(timeSize / 10))
+    for (let twt = 0; twt <= timeSize; twt += twtStep) {
         const y = HELPER_COORD_timeToY(twt)
 
         const pos = new THREE.Vector3(0, y, 0)
@@ -794,7 +804,7 @@ const AXIS_HELPER_create = () => {
         if (label) group.add(label)
     }
 
-    const gridY = HELPER_COORD_timeToY(Math.max(...twtTicks))
+    const gridY = HELPER_COORD_timeToY(0)
     group.add(HELPER_AXIS_createGrid(gridY))
 
     GLOBAL_SCENE_INSTANCE.add(group)
@@ -1153,16 +1163,16 @@ const HORIZON_setAllVisible = (visible) => {
 
 const GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER = new THREE.TextureLoader();
 
-/** @param { import('three').Texture } */
-const HELPER_SEISMIC_PLANE_createMesh = (texture) => {
-    const geometry = new THREE.PlaneGeometry(
-        GLOBAL_CONFIG_SEISMIC.imageWidth,
-        GLOBAL_CONFIG_SEISMIC.imageHeight
-    ) // -> ini buat ukuran plane
+/** @param { import('three').Texture } texture @param {number} width @param {number} height */
+const HELPER_SEISMIC_PLANE_createMesh = (texture, width, height) => {
+    const geometry = new THREE.PlaneGeometry(width, height)
 
+    // Shift so local x starts at 0 and local y top edge is at 0
+    // (bottom edge at -height). When positioned at Y=timeSize the
+    // plane top aligns with TWT=0.
     geometry.translate(
-        GLOBAL_CONFIG_SEISMIC.imageWidth / 2,
-        0,
+        width / 2,
+        -height / 2,
         0
     )
 
@@ -1207,33 +1217,36 @@ const SEISMIC_PLANE_createInline = () => {
 
     /** @type { import('three').Mesh} */
     let plane = null;
-    let currentIndex = 0;
+    let currentNumber = GLOBAL_CONFIG_SEISMIC.inlineMin;
 
     GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER.load(
-        GLOBAL_CONFIG_PATH.getInlinePath(0),
+        GLOBAL_CONFIG_PATH.getInlinePath(GLOBAL_CONFIG_SEISMIC.inlineMin),
         /** @param { import('three').Texture } */
         (texture) => {
-
-            plane = HELPER_SEISMIC_PLANE_createMesh(texture);
+            plane = HELPER_SEISMIC_PLANE_createMesh(
+                texture,
+                GLOBAL_CONFIG_SEISMIC.crosslineRange,
+                GLOBAL_CONFIG_SEISMIC.imageHeight
+            );
             plane.rotation.y = -Math.PI / 2;
-            plane.position.set(0, 0, 0);
+            plane.position.set(
+                currentNumber - GLOBAL_CONFIG_SEISMIC.inlineMin,
+                GLOBAL_CONFIG_SEISMIC.timeSize,
+                0
+            );
             SCENE_add(plane);
-
         }
     )
 
-    const setIndex = (index) => {
-        currentIndex = index;
+    const setIndex = (number) => {
+        currentNumber = number;
         if (plane) {
-            plane.position.x = HELPER_COORD_indexToPosition(
-                currentIndex,
-                GLOBAL_CONFIG_SEISMIC.inlineCount
-            )
+            plane.position.x = number - GLOBAL_CONFIG_SEISMIC.inlineMin;
         }
 
         HELPER_SEISMIC_PLANE_updateTexture(
             plane,
-            GLOBAL_CONFIG_PATH.getInlinePath(currentIndex)
+            GLOBAL_CONFIG_PATH.getInlinePath(currentNumber)
         )
     }
 
@@ -1261,31 +1274,36 @@ const SEISMIC_PLANE_createCrossline = () => {
 
     /** @type { import('three').Mesh} */
     let plane = null;
-    let currentIndex = 0;
+    let currentNumber = GLOBAL_CONFIG_SEISMIC.crosslineMin;
 
     GLOBAL_SEISMIC_PLANE_TEXTURE_LOADER.load(
-        GLOBAL_CONFIG_PATH.getCrosslinePath(0),
+        GLOBAL_CONFIG_PATH.getCrosslinePath(GLOBAL_CONFIG_SEISMIC.crosslineMin),
         /** @param { import('three').Texture } */
         (texture) => {
-            plane = HELPER_SEISMIC_PLANE_createMesh(texture);
+            plane = HELPER_SEISMIC_PLANE_createMesh(
+                texture,
+                GLOBAL_CONFIG_SEISMIC.inlineRange,
+                GLOBAL_CONFIG_SEISMIC.imageHeight
+            );
             plane.rotation.y = 0;
-            plane.position.set(0, 0, 0);
+            plane.position.set(
+                0,
+                GLOBAL_CONFIG_SEISMIC.timeSize,
+                currentNumber - GLOBAL_CONFIG_SEISMIC.crosslineMin
+            );
             SCENE_add(plane);
         }
     )
 
-    const setIndex = (index) => {
-        currentIndex = index;
+    const setIndex = (number) => {
+        currentNumber = number;
         if (plane) {
-            plane.position.z = HELPER_COORD_indexToPosition(
-                currentIndex,
-                GLOBAL_CONFIG_SEISMIC.crosslineCount
-            )
+            plane.position.z = number - GLOBAL_CONFIG_SEISMIC.crosslineMin;
         }
 
         HELPER_SEISMIC_PLANE_updateTexture(
             plane,
-            GLOBAL_CONFIG_PATH.getCrosslinePath(currentIndex)
+            GLOBAL_CONFIG_PATH.getCrosslinePath(currentNumber)
         )
     }
 
@@ -2560,7 +2578,17 @@ const HELPER_DATA_transformHorizon = (rawHorizons) => {
     let bottomMin = Infinity
     let bottomMax = -Infinity
 
+    let globalInlineMin = Infinity
+    let globalCrosslineMin = Infinity
+
     for (const horizon of rawHorizons) {
+        if (horizon.Inline != null) {
+            globalInlineMin = Math.min(globalInlineMin, horizon.Inline)
+        }
+        if (horizon.Crossline != null) {
+            globalCrosslineMin = Math.min(globalCrosslineMin, horizon.Crossline)
+        }
+
         if (
             horizon.top != null
             && horizon.top !== 0
@@ -2590,6 +2618,13 @@ const HELPER_DATA_transformHorizon = (rawHorizons) => {
         }
     }
 
+    if (globalInlineMin !== Infinity) {
+        GLOBAL_CONFIG_SEISMIC.inlineOffset = globalInlineMin
+    }
+    if (globalCrosslineMin !== Infinity) {
+        GLOBAL_CONFIG_SEISMIC.croslineOffset = globalCrosslineMin
+    }
+
     /** @type {HorizonData[]} */
     const horizons = [];
 
@@ -2614,6 +2649,87 @@ const HELPER_DATA_transformHorizon = (rawHorizons) => {
     return horizons
 }
 
+
+/**
+ * @typedef {Object} SeismicRangesApiPayload
+ * @property {{inline: {min:number,max:number,count:number,range:number}, crossline: {min:number,max:number,count:number,range:number}}} ranges
+ */
+
+/**
+ * @typedef {Object} ImageDimensionsApiPayload
+ * @property {number} width
+ * @property {number} height
+ */
+
+/**
+ * @typedef {Object} WellLogStatsApiPayload
+ * @property {string} log_type
+ * @property {number} total_rows
+ * @property {number} min_twt
+ * @property {number} max_twt
+ * @property {number} max_abs_twt
+ * @property {number} mid_twt
+ */
+
+const DATA_loadSeismicMetadata = async () => {
+    console.log('[Metadata] Loading seismic ranges...')
+
+    /** @type {SeismicRangesApiPayload} */
+    const rangesData = await API_fetchJson('seismic/ranges')
+    const inlineRange = rangesData.ranges.inline
+    const crosslineRange = rangesData.ranges.crossline
+
+    // Fetch image dimensions from representative sections
+    /** @type {ImageDimensionsApiPayload} */
+    const inlineDims = await API_fetchJson(
+        `image-helper/inline/${inlineRange.min}/dimensions`
+    )
+
+    // Update global config
+    GLOBAL_CONFIG_SEISMIC.inlineMin = inlineRange.min
+    GLOBAL_CONFIG_SEISMIC.inlineMax = inlineRange.max
+    GLOBAL_CONFIG_SEISMIC.inlineCount = inlineRange.count
+    GLOBAL_CONFIG_SEISMIC.inlineRange = inlineRange.range
+
+    GLOBAL_CONFIG_SEISMIC.crosslineMin = crosslineRange.min
+    GLOBAL_CONFIG_SEISMIC.crosslineMax = crosslineRange.max
+    GLOBAL_CONFIG_SEISMIC.crosslineCount = crosslineRange.count
+    GLOBAL_CONFIG_SEISMIC.crosslineRange = crosslineRange.range
+
+    GLOBAL_CONFIG_SEISMIC.imageHeight = inlineDims.height
+
+    console.log('[Metadata] Seismic config updated:', {
+        inline: `${inlineRange.min}→${inlineRange.max} (range=${inlineRange.range})`,
+        crossline: `${crosslineRange.min}→${crosslineRange.max} (range=${crosslineRange.range})`,
+        imageHeight: inlineDims.height
+    })
+}
+
+const DATA_loadWellLogTwtStats = async () => {
+    console.log('[Metadata] Loading well-log TWT stats...')
+
+    const LOG_TYPES = ['phie', 'swe', 'vsh']
+    let maxAbsTwt = 0
+
+    for (const logType of LOG_TYPES) {
+        try {
+            /** @type {WellLogStatsApiPayload} */
+            const stats = await API_fetchJson(`well-log/${logType}/stats`)
+            if (stats.max_abs_twt > maxAbsTwt) {
+                maxAbsTwt = stats.max_abs_twt
+            }
+        } catch (e) {
+            console.warn(`[Metadata] Failed to load TWT stats for ${logType}`)
+        }
+    }
+
+    if (maxAbsTwt > 0) {
+        GLOBAL_CONFIG_SEISMIC.timeSize = maxAbsTwt
+        console.log(`[Metadata] timeSize set to ${maxAbsTwt} from well-log TWT`)
+    } else {
+        console.warn('[Metadata] No well-log TWT stats available, keeping default timeSize')
+    }
+}
 
 /**
  * @typedef {Object} HorizonApiPayload
@@ -2859,6 +2975,7 @@ const DATA_loadAll = async () => {
 const UI_createSliderControl = (
     sliderId,
     labelId,
+    minValue,
     maxValue,
     onChange
 ) => {
@@ -2866,14 +2983,15 @@ const UI_createSliderControl = (
     const label = document.getElementById(labelId)
 
     if (slider) {
+        slider.min = String(minValue)
         slider.max = String(maxValue)
-        slider.value = '0'
+        slider.value = String(minValue)
 
         slider.addEventListener(
             'input',
             () => {
                 const value = parseInt(slider.value)
-                if (label) label.textContent = (value + 1).toString();
+                if (label) label.textContent = value.toString();
                 if (onChange) onChange(value)
             }
         )
@@ -3190,12 +3308,14 @@ const UI_initControls = (
         UI_createSliderControl(
             'inlineSlider',
             'label_inline',
+            GLOBAL_CONFIG_SEISMIC.inlineMin,
             GLOBAL_CONFIG_SEISMIC.getMaxInlineIndex(),
             (value) => inlinePlane.setIndex(value)
         );
         UI_createSliderControl(
             'crosslineSlider',
             'label_crossline',
+            GLOBAL_CONFIG_SEISMIC.crosslineMin,
             GLOBAL_CONFIG_SEISMIC.getMaxCrosslineIndex(),
             (value) => crosslinePlane.setIndex(value)
         );
@@ -3472,6 +3592,17 @@ const APP_init = async () => {
 
     UI_LOADING_init();
 
+    const apiAvailable = await API_isAvailable();
+
+    if (apiAvailable) {
+        try {
+            await DATA_loadSeismicMetadata()
+            await DATA_loadWellLogTwtStats()
+        } catch (error) {
+            console.error('Failed to load seismic metadata:', error)
+        }
+    }
+
     try {
         SCENE_init()
     } catch (error) {
@@ -3481,8 +3612,6 @@ const APP_init = async () => {
     }
 
     AXIS_HELPER_create()
-
-    const apiAvailable = await API_isAvailable();
 
     /** @type {SeismicPlane | null} */
     let inlinePlane = null
